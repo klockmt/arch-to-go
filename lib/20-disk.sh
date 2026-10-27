@@ -7,8 +7,8 @@ BTRFS_OPTS=${BTRFS_OPTS:-noatime,ssd,discard=async,nodatacow}
 
 require_host_tools() {
     local tool
-    for tool in sgdisk wipefs partprobe udevadm mkfs.fat mkfs.btrfs btrfs; do
-        command -v "$tool" >/dev/null || die "falta '$tool' no host (pacotes: gptfdisk, util-linux, dosfstools, btrfs-progs)"
+    for tool in sgdisk wipefs partprobe udevadm mkfs.fat mkfs.btrfs btrfs pacstrap genfstab arch-chroot; do
+        command -v "$tool" >/dev/null || die "falta '$tool' no host (pacotes: gptfdisk, util-linux, dosfstools, btrfs-progs, arch-install-scripts)"
     done
 }
 

@@ -9,6 +9,8 @@ source "$ROOT_DIR/lib/common.sh"
 source "$ROOT_DIR/lib/10-safety.sh"
 # shellcheck source=lib/20-disk.sh
 source "$ROOT_DIR/lib/20-disk.sh"
+# shellcheck source=lib/30-base.sh
+source "$ROOT_DIR/lib/30-base.sh"
 
 DISK=${1:-}
 DRY_RUN=0
@@ -30,4 +32,8 @@ partition_disk "$DISK"
 format_disk "$DISK"
 mount_layout "$DISK"
 
-log "disco pronto em /mnt"
+log "instalando sistema base"
+install_base
+configure_base
+
+log "base pronta em /mnt"
