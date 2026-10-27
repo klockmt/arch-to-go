@@ -52,6 +52,14 @@ configure_base() {
         echo LANG=$ARCH_LOCALE > /etc/locale.conf
         echo $ARCH_HOSTNAME > /etc/hostname
         sed -i 's/^HOOKS=.*/HOOKS=(base udev block keyboard keymap filesystems fsck)/; s/^MODULES=.*/MODULES=(btrfs)/' /etc/mkinitcpio.conf
+        # O pacote oficial linux não traz preset; sem ele o mkinitcpio -P não gera nada e /boot fica sem kernel
+        [[ -f /etc/mkinitcpio.d/linux.preset ]] || cat > /etc/mkinitcpio.d/linux.preset <<'PRESET'
+ALL_config=/etc/mkinitcpio.conf
+ALL_kver=/boot/vmlinuz-linux
+PRESETS=(default)
+default_image=/boot/initramfs-linux.img
+PRESET
+        cp /usr/lib/modules/*/vmlinuz /boot/vmlinuz-linux
         mkinitcpio -P
         useradd -m -G wheel $ARCH_USER
         echo '%wheel ALL=(ALL:ALL) ALL' > /etc/sudoers.d/10-wheel
