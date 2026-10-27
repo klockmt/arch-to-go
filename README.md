@@ -25,7 +25,7 @@ Variáveis opcionais: `ARCH_USER`, `ARCH_HOSTNAME`, `ARCH_LOCALE`, `ARCH_TZ`, `E
 - Montagem com `noatime,ssd,discard=async,nodatacow`.
 - Base: `base linux linux-firmware btrfs-progs sudo`, fstab por UUID, initramfs sem `autodetect`.
 - Bootloader Limine instalado como removível (`EFI/BOOT/BOOTX64.EFI`). A NVRAM do computador onde você roda o instalador não é alterada.
-- Desktop: Hyprland, kitty, fish (sobe o Hyprland no tty1), nautilus, `ttf-dejavu`.
+- Desktop: Hyprland, kitty, fish, nautilus, `ttf-dejavu`. Login pelo ly (`LY_UNIT`, padrão `ly@tty1.service`).
 - Rede: iwd só para Wi-Fi; systemd-networkd faz DHCP; systemd-resolved faz DNS.
 - tuned e tuned-ppd habilitados.
 - paru compilado no host e instalado no alvo com `pacman -U`.
