@@ -1,0 +1,7 @@
+timeout: 3
+
+/Arch Linux
+    protocol: linux
+    path: boot():/vmlinuz-linux
+    cmdline: root=UUID=@ROOT_UUID@ rootflags=subvol=@ rw
+    module_path: boot():/initramfs-linux.img

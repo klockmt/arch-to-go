@@ -11,6 +11,8 @@ source "$ROOT_DIR/lib/10-safety.sh"
 source "$ROOT_DIR/lib/20-disk.sh"
 # shellcheck source=lib/30-base.sh
 source "$ROOT_DIR/lib/30-base.sh"
+# shellcheck source=lib/40-boot.sh
+source "$ROOT_DIR/lib/40-boot.sh"
 
 DISK=${1:-}
 DRY_RUN=0
@@ -36,4 +38,7 @@ log "instalando sistema base"
 install_base
 configure_base
 
-log "base pronta em /mnt"
+log "instalando Limine"
+install_limine "$DISK"
+
+log "base e bootloader prontos em /mnt"
