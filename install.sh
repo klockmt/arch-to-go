@@ -15,6 +15,8 @@ source "$ROOT_DIR/lib/30-base.sh"
 source "$ROOT_DIR/lib/40-boot.sh"
 # shellcheck source=lib/50-desktop.sh
 source "$ROOT_DIR/lib/50-desktop.sh"
+# shellcheck source=lib/60-paru.sh
+source "$ROOT_DIR/lib/60-paru.sh"
 
 DISK=${1:-}
 DRY_RUN=0
@@ -27,6 +29,8 @@ export DRY_RUN
 [[ $DRY_RUN == 1 ]] || require_host_tools
 check_target "$DISK"
 confirm_target "$DISK"
+log "compilando paru (ou usando o pacote já pronto)"
+build_paru
 
 # Desmonta /mnt se algo der errado no meio (no dry-run não mexe em nada)
 [[ $DRY_RUN == 1 ]] || trap 'umount -R /mnt 2>/dev/null || true' EXIT
@@ -45,5 +49,8 @@ install_limine "$DISK"
 
 log "instalando desktop e rede"
 install_desktop
+
+log "instalando paru"
+install_paru
 
 log "sistema instalado em /mnt"
