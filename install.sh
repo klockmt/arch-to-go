@@ -34,7 +34,8 @@ log "compilando paru (ou usando o pacote já pronto)"
 build_paru
 
 # Desmonta /mnt se algo der errado no meio (no dry-run não mexe em nada)
-[[ $DRY_RUN == 1 ]] || trap 'umount -R /mnt 2>/dev/null || true' EXIT
+# Lazy como segunda tentativa: processos do chroot (ex.: gpg-agent) podem segurar /mnt
+[[ $DRY_RUN == 1 ]] || trap 'umount -R /mnt 2>/dev/null || umount -R -l /mnt 2>/dev/null || true' EXIT
 
 log "particionando $DISK"
 partition_disk "$DISK"
