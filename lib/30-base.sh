@@ -35,7 +35,8 @@ set_password() {
 }
 
 install_base() {
-    run pacstrap -K /mnt base linux linux-firmware btrfs-progs sudo
+    # -C: o pacman.conf do host tem repositórios do CachyOS, que não podem ir para o sistema instalado
+    run pacstrap -C "$ROOT_DIR/config/pacman.conf" -K /mnt base linux linux-firmware btrfs-progs sudo
     # fstab por UUID (genfstab -U). O redirecionamento fica dentro do bash -c para o dry-run não gravar
     run bash -c 'genfstab -U /mnt >> /mnt/etc/fstab'
 }
