@@ -5,6 +5,8 @@ set -euo pipefail
 ROOT_DIR=$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)
 # shellcheck source=lib/common.sh
 source "$ROOT_DIR/lib/common.sh"
+# shellcheck source=lib/10-safety.sh
+source "$ROOT_DIR/lib/10-safety.sh"
 
 DISK=${1:-}
 DRY_RUN=0
@@ -12,5 +14,8 @@ DRY_RUN=0
 export DRY_RUN
 
 [[ -n $DISK ]] || die "uso: $0 /dev/sdX [--dry-run]"
+
+check_target "$DISK"
+confirm_target "$DISK"
 
 log "esqueleto pronto para $DISK (dry-run=$DRY_RUN)"
