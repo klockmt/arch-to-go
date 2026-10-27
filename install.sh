@@ -13,6 +13,8 @@ source "$ROOT_DIR/lib/20-disk.sh"
 source "$ROOT_DIR/lib/30-base.sh"
 # shellcheck source=lib/40-boot.sh
 source "$ROOT_DIR/lib/40-boot.sh"
+# shellcheck source=lib/50-desktop.sh
+source "$ROOT_DIR/lib/50-desktop.sh"
 
 DISK=${1:-}
 DRY_RUN=0
@@ -41,4 +43,7 @@ configure_base
 log "instalando Limine"
 install_limine "$DISK"
 
-log "base e bootloader prontos em /mnt"
+log "instalando desktop e rede"
+install_desktop
+
+log "sistema instalado em /mnt"
