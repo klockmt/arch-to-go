@@ -16,7 +16,9 @@ Antes de instalar, o script:
 1. Recusa o disco se ele não for USB, se não for disco inteiro, se tiver partição montada ou se for um disco do sistema atual.
 2. Mostra o `lsblk` do alvo e pede que você digite o caminho exato (ex.: `/dev/sdb`).
 
-Variáveis opcionais: `ARCH_USER`, `ARCH_HOSTNAME`, `ARCH_LOCALE`, `ARCH_TZ`, `ESP_SIZE`, `BTRFS_OPTS`.
+O instalador pergunta o nome e a senha da conta. Essa conta entra no grupo `wheel` (sudo) e recebe a mesma senha como root.
+
+Variáveis opcionais: `ARCH_HOSTNAME`, `ARCH_LOCALE`, `ARCH_TZ`, `ESP_SIZE`, `BTRFS_OPTS`, `LY_UNIT`.
 
 ## O que acontece
 
