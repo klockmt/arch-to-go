@@ -29,6 +29,7 @@ export DRY_RUN
 [[ $DRY_RUN == 1 ]] || require_host_tools
 check_target "$DISK"
 confirm_target "$DISK"
+ask_account
 log "compilando paru (ou usando o pacote já pronto)"
 build_paru
 

@@ -2,9 +2,37 @@
 # Sistema base em /mnt: pacstrap, fstab, locale, hostname e usuário. Carregado pelo install.sh.
 
 ARCH_HOSTNAME=${ARCH_HOSTNAME:-archtogo}
-ARCH_USER=${ARCH_USER:-klock}
 ARCH_LOCALE=${ARCH_LOCALE:-pt_BR.UTF-8}
 ARCH_TZ=${ARCH_TZ:-America/Sao_Paulo}
+
+# Pede o usuário (que também é root) e a senha. Roda antes de qualquer escrita no disco.
+ask_account() {
+    local pass pass2
+    if [[ $DRY_RUN == 1 ]]; then
+        ARCH_USER=${ARCH_USER:-usuario}
+        ADMIN_PASS=dry-run
+        return 0
+    fi
+
+    read -rp "Nome do usuário (também será root): " ARCH_USER
+    [[ $ARCH_USER =~ ^[a-z_][a-z0-9_-]*$ ]] || die "nome inválido: use minúsculas, números, _ ou -"
+    while :; do
+        read -rsp "Senha: " pass; echo
+        read -rsp "Repita a senha: " pass2; echo
+        [[ -n $pass && $pass == "$pass2" ]] && break
+        echo "senha vazia ou diferente, tente de novo" >&2
+    done
+    ADMIN_PASS=$pass
+}
+
+# set_password <conta>: a senha vai por stdin, então não aparece em argv
+set_password() {
+    if [[ $DRY_RUN == 1 ]]; then
+        log "[dry-run] definir senha de $1"
+        return 0
+    fi
+    printf '%s:%s\n' "$1" "$ADMIN_PASS" | arch-chroot /mnt chpasswd
+}
 
 install_base() {
     run pacstrap -K /mnt base linux linux-firmware btrfs-progs sudo
@@ -28,6 +56,7 @@ configure_base() {
         echo '%wheel ALL=(ALL:ALL) ALL' > /etc/sudoers.d/10-wheel
         chmod 440 /etc/sudoers.d/10-wheel
     "
-    run arch-chroot /mnt passwd
-    run arch-chroot /mnt passwd "$ARCH_USER"
+    set_password root
+    set_password "$ARCH_USER"
+    unset ADMIN_PASS
 }
