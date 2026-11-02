@@ -56,7 +56,7 @@ pub fn check_target(dev: &str, sys: &dyn SystemInfo) -> Result<(), SafetyError> 
     if info.tran != "usb" {
         return Err(SafetyError::NotUsb(dev.into(), info.tran));
     }
-    if sys.host_disks()?.iter().any(|d| *d == info.name) {
+    if sys.host_disks()?.contains(&info.name) {
         return Err(SafetyError::HostDisk(dev.into()));
     }
     if sys.has_mounted(dev)? {
