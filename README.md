@@ -41,8 +41,8 @@ Variáveis opcionais: `ARCH_HOSTNAME`, `ARCH_LOCALE`, `ARCH_TZ`, `ESP_SIZE`, `BT
 ## Testes
 
 ```sh
-bash tests/safety.sh     # checagens de disco com lsblk/findmnt mockados
-shellcheck install.sh lib/*.sh tests/safety.sh
+cargo test               # inclui as checagens de disco, com lsblk/findmnt simulados
+shellcheck install.sh lib/*.sh
 ```
 
 ## Pendências (fora desta etapa)
