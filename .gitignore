@@ -3,3 +3,4 @@ pkgs/
 out/
 .env
 target/
+.superpowers/

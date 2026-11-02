@@ -1,0 +1,6 @@
+[package]
+name = "arch-to-go-core"
+edition.workspace = true
+version.workspace = true
+
+[dependencies]
