@@ -194,3 +194,21 @@ fn password_in_config_is_rejected() {
             .success()
     );
 }
+
+#[test]
+fn loop_device_needs_the_env_flag() {
+    let fix = fixture("");
+    std::fs::write(fix.path().join("disk_info"), "loop0 loop\n").unwrap();
+    let cfg = config(fix.path(), "");
+    let args = ["install", "/dev/loop0", "--config", &cfg, "--dry-run"];
+    assert!(!run(&fix, &args).status.success());
+    let o = Command::new(BIN)
+        .args(args)
+        .env("ARCH_TO_GO_SYSINFO_DIR", fix.path())
+        .env("ARCH_ADMIN_PASSWORD", PASSWORD)
+        .env("ARCH_TO_GO_ALLOW_LOOP", "1")
+        .output()
+        .unwrap();
+    assert!(o.status.success(), "{}", text(&o));
+    assert!(text(&o).contains("/dev/loop0p1"), "{}", text(&o));
+}

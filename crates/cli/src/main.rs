@@ -94,7 +94,12 @@ fn install(device: &str, config: Option<PathBuf>, dry: bool) -> Result<(), Strin
     if !dry && !is_root() {
         return Err("a real install needs root (or use --dry-run)".into());
     }
-    check_target(device, sys.as_ref()).map_err(|e| e.to_string())?;
+    check_target(
+        device,
+        sys.as_ref(),
+        std::env::var("ARCH_TO_GO_ALLOW_LOOP").is_ok_and(|v| v == "1"),
+    )
+    .map_err(|e| e.to_string())?;
 
     if !fake {
         let _ = std::process::Command::new("lsblk")

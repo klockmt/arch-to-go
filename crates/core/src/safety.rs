@@ -40,7 +40,9 @@ pub trait SystemInfo {
     fn has_mounted(&self, dev: &str) -> Result<bool, SafetyError>;
 }
 
-pub fn check_target(dev: &str, sys: &dyn SystemInfo) -> Result<(), SafetyError> {
+/// `allow_loop` lets a loop device through, for the integration test only; it
+/// relaxes nothing else (a SATA disk is still refused).
+pub fn check_target(dev: &str, sys: &dyn SystemInfo, allow_loop: bool) -> Result<(), SafetyError> {
     let plain = dev.strip_prefix("/dev/").is_some_and(|n| {
         !n.is_empty()
             && n.chars()
@@ -50,10 +52,11 @@ pub fn check_target(dev: &str, sys: &dyn SystemInfo) -> Result<(), SafetyError> 
         return Err(SafetyError::BadPath(dev.into()));
     }
     let info = sys.disk_info(dev)?;
-    if info.kind != "disk" {
+    let loop_ok = allow_loop && info.kind == "loop";
+    if info.kind != "disk" && !loop_ok {
         return Err(SafetyError::NotWholeDisk(dev.into(), info.kind));
     }
-    if info.tran != "usb" {
+    if !loop_ok && info.tran != "usb" {
         return Err(SafetyError::NotUsb(dev.into(), info.tran));
     }
     if sys.host_disks()?.contains(&info.name) {

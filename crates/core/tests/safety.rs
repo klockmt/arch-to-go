@@ -37,14 +37,14 @@ impl SystemInfo for Fake {
 
 #[test]
 fn accepts_unmounted_usb_disk() {
-    check_target("/dev/sda", &Fake::usb("sda")).unwrap();
+    check_target("/dev/sda", &Fake::usb("sda"), false).unwrap();
 }
 
 #[test]
 fn rejects_non_disk() {
     let mut f = Fake::usb("sda1");
     f.info.as_mut().unwrap().kind = "part".into();
-    assert!(check_target("/dev/sda1", &f).is_err());
+    assert!(check_target("/dev/sda1", &f, false).is_err());
 }
 
 #[test]
@@ -52,7 +52,7 @@ fn rejects_non_usb() {
     for tran in ["sata", "nvme", ""] {
         let mut f = Fake::usb("sdb");
         f.info.as_mut().unwrap().tran = tran.into();
-        assert!(check_target("/dev/sdb", &f).is_err(), "{tran:?}");
+        assert!(check_target("/dev/sdb", &f, false).is_err(), "{tran:?}");
     }
 }
 
@@ -61,7 +61,7 @@ fn rejects_host_disk() {
     let mut f = Fake::usb("sda");
     f.host = Some(vec!["nvme0n1".into(), "sda".into()]);
     assert!(matches!(
-        check_target("/dev/sda", &f),
+        check_target("/dev/sda", &f, false),
         Err(SafetyError::HostDisk(_))
     ));
 }
@@ -71,7 +71,7 @@ fn rejects_mounted_partitions() {
     let mut f = Fake::usb("sda");
     f.mounted = true;
     assert!(matches!(
-        check_target("/dev/sda", &f),
+        check_target("/dev/sda", &f, false),
         Err(SafetyError::Mounted(_))
     ));
 }
@@ -80,13 +80,13 @@ fn rejects_mounted_partitions() {
 fn fails_closed_when_host_disks_unreadable() {
     let mut f = Fake::usb("sda");
     f.host = None;
-    assert!(check_target("/dev/sda", &f).is_err());
+    assert!(check_target("/dev/sda", &f, false).is_err());
 }
 
 #[test]
 fn rejects_path_outside_dev() {
     for p in ["sda", "/tmp/sda", "/dev/../etc/passwd", "/dev/sda ", ""] {
-        assert!(check_target(p, &Fake::usb("sda")).is_err(), "{p:?}");
+        assert!(check_target(p, &Fake::usb("sda"), false).is_err(), "{p:?}");
     }
 }
 
@@ -113,4 +113,36 @@ fn lsblk_line_is_parsed() {
     );
     // an empty transport column leaves only two fields
     assert_eq!(parse_disk_info("loop0 loop\n").unwrap().tran, "");
+}
+
+fn loop_dev() -> Fake {
+    let mut f = Fake::usb("loop0");
+    let i = f.info.as_mut().unwrap();
+    i.kind = "loop".into();
+    i.tran = "".into();
+    f
+}
+
+#[test]
+fn loop_device_refused_without_flag() {
+    assert!(check_target("/dev/loop0", &loop_dev(), false).is_err());
+}
+
+#[test]
+fn loop_device_accepted_with_flag() {
+    check_target("/dev/loop0", &loop_dev(), true).unwrap();
+}
+
+#[test]
+fn loop_flag_does_not_relax_other_non_usb_disks() {
+    let mut f = Fake::usb("sdb");
+    f.info.as_mut().unwrap().tran = "sata".into();
+    assert!(check_target("/dev/sdb", &f, true).is_err());
+}
+
+#[test]
+fn loop_flag_still_refuses_host_backing_loop() {
+    let mut f = loop_dev();
+    f.host = Some(vec!["loop0".into()]);
+    assert!(check_target("/dev/loop0", &f, true).is_err());
 }
