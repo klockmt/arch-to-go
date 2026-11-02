@@ -20,8 +20,8 @@ impl Drop for MountGuard {
     fn drop(&mut self) {
         let mut r = self.runner.borrow_mut();
         // lazy as a second try: chroot processes (gpg-agent) can hold /mnt open
-        if r.run(&Cmd::new(&["umount", "-R", "/mnt"])).is_err() {
-            let _ = r.run(&Cmd::new(&["umount", "-R", "-l", "/mnt"]));
+        if r.run_cleanup(&Cmd::new(&["umount", "-R", "/mnt"])).is_err() {
+            let _ = r.run_cleanup(&Cmd::new(&["umount", "-R", "-l", "/mnt"]));
         }
     }
 }

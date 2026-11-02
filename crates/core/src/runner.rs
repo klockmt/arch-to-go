@@ -2,6 +2,11 @@
 
 use crate::step::{Cmd, Step};
 use std::io::Write;
+use std::sync::atomic::{AtomicBool, Ordering};
+
+/// Set by the CLI's Ctrl-C handler. `RealRunner` refuses to start anything once
+/// it is set, so the run stops between commands and the mount guard unmounts.
+pub static INTERRUPTED: AtomicBool = AtomicBool::new(false);
 
 #[derive(Debug, thiserror::Error)]
 pub enum RunError {
@@ -16,6 +21,8 @@ pub enum RunError {
         path: String,
         source: std::io::Error,
     },
+    #[error("interrupted")]
+    Interrupted,
     #[error("injected failure at call {0}")]
     Injected(usize),
 }
@@ -23,6 +30,10 @@ pub enum RunError {
 pub trait Runner {
     fn run(&mut self, cmd: &Cmd) -> Result<(), RunError>;
     fn write_file(&mut self, path: &str, contents: &str, mode: u32) -> Result<(), RunError>;
+    /// Like `run`, but still works after an interrupt. Only for cleanup (unmount).
+    fn run_cleanup(&mut self, cmd: &Cmd) -> Result<(), RunError> {
+        self.run(cmd)
+    }
     /// Called before each step with its description.
     fn announce(&mut self, _desc: &str) {}
 }
@@ -111,6 +122,27 @@ pub struct RealRunner;
 
 impl Runner for RealRunner {
     fn run(&mut self, cmd: &Cmd) -> Result<(), RunError> {
+        if INTERRUPTED.load(Ordering::SeqCst) {
+            return Err(RunError::Interrupted);
+        }
+        exec(cmd)
+    }
+
+    fn run_cleanup(&mut self, cmd: &Cmd) -> Result<(), RunError> {
+        exec(cmd)
+    }
+
+    fn write_file(&mut self, path: &str, contents: &str, mode: u32) -> Result<(), RunError> {
+        write_real(path, contents, mode)
+    }
+
+    fn announce(&mut self, desc: &str) {
+        eprintln!("==> {desc}");
+    }
+}
+
+fn exec(cmd: &Cmd) -> Result<(), RunError> {
+    {
         use std::process::{Command, Stdio};
         let (prog, args) = cmd.argv.split_first().ok_or(RunError::Empty)?;
         let shown = cmd.argv.join(" ");
@@ -145,21 +177,20 @@ impl Runner for RealRunner {
             })
         }
     }
+}
 
-    fn write_file(&mut self, path: &str, contents: &str, mode: u32) -> Result<(), RunError> {
-        use std::os::unix::fs::PermissionsExt;
-        let io = |e| RunError::Io {
-            path: path.into(),
-            source: e,
-        };
-        if let Some(dir) = std::path::Path::new(path).parent() {
-            std::fs::create_dir_all(dir).map_err(io)?;
-        }
-        std::fs::write(path, contents).map_err(io)?;
-        std::fs::set_permissions(path, std::fs::Permissions::from_mode(mode)).map_err(io)
+fn write_real(path: &str, contents: &str, mode: u32) -> Result<(), RunError> {
+    use std::os::unix::fs::PermissionsExt;
+    if INTERRUPTED.load(Ordering::SeqCst) {
+        return Err(RunError::Interrupted);
     }
-
-    fn announce(&mut self, desc: &str) {
-        eprintln!("==> {desc}");
+    let io = |e| RunError::Io {
+        path: path.into(),
+        source: e,
+    };
+    if let Some(dir) = std::path::Path::new(path).parent() {
+        std::fs::create_dir_all(dir).map_err(io)?;
     }
+    std::fs::write(path, contents).map_err(io)?;
+    std::fs::set_permissions(path, std::fs::Permissions::from_mode(mode)).map_err(io)
 }
