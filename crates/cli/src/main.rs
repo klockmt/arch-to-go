@@ -4,7 +4,7 @@ mod paru;
 mod prompt;
 
 use arch_to_go_core::config::Config;
-use arch_to_go_core::exit_guard::MountGuard;
+use arch_to_go_core::exit_guard::{MountGuard, Unmount};
 use arch_to_go_core::plan::{Ctx, build};
 use arch_to_go_core::runner::{DryRunner, INTERRUPTED, RealRunner, execute};
 use arch_to_go_core::safety::{HostSystem, SystemInfo, check_target, confirm_matches};
@@ -143,8 +143,19 @@ fn install(device: &str, config: Option<PathBuf>, dry: bool) -> Result<(), Strin
     let runner = Rc::new(RefCell::new(RealRunner));
     let guard = MountGuard::new(runner.clone());
     let result = execute(&steps, &mut *runner.borrow_mut());
-    drop(guard);
+    let unmount = guard.finish();
     result.map_err(|e| e.to_string())?;
-    eprintln!("installed on {device}");
+    match unmount {
+        Unmount::Clean => eprintln!("installed on {device}"),
+        Unmount::Lazy => eprintln!(
+            "installed on {device}, but /mnt was only unmounted lazily (something still held it): \
+             wait a few seconds and run `sync` before unplugging"
+        ),
+        Unmount::Failed => {
+            return Err(format!(
+                "installed on {device}, but /mnt could not be unmounted: do not unplug the drive yet"
+            ));
+        }
+    }
     Ok(())
 }

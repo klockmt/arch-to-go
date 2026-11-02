@@ -66,6 +66,8 @@ pub fn build(cfg: &Config, ctx: &Ctx) -> Result<Vec<Step>, ConfigError> {
     steps.extend(base::base_steps(cfg, ctx));
     steps.extend(boot::boot_steps(cfg, ctx));
     steps.extend(profile::profile_steps(cfg, ctx));
+    // flush before the caller reports success: the stick may be unplugged right after
+    steps.push(run("flush writes to the disk", &["sync"]));
     Ok(steps)
 }
 

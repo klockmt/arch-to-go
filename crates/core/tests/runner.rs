@@ -1,4 +1,4 @@
-use arch_to_go_core::exit_guard::MountGuard;
+use arch_to_go_core::exit_guard::{MountGuard, Unmount};
 use arch_to_go_core::runner::{DryRunner, MockRunner, Runner, execute};
 use arch_to_go_core::step::{Cmd, Secret, Step};
 use std::cell::RefCell;
@@ -136,4 +136,42 @@ fn child_env_keeps_only_an_allow_list() {
         .map(|(k, _)| k)
         .collect();
     assert_eq!(kept, ["PATH", "LANG"]);
+}
+
+#[test]
+fn finish_reports_a_clean_unmount_and_does_not_unmount_twice() {
+    let m = Rc::new(RefCell::new(MockRunner::default()));
+    let guard = MountGuard::new(m.clone());
+    assert_eq!(guard.finish(), Unmount::Clean);
+    assert_eq!(m.borrow().cmds.len(), 1, "drop must not unmount again");
+}
+
+#[test]
+fn finish_reports_a_lazy_unmount() {
+    let m = Rc::new(RefCell::new(MockRunner {
+        fail_at: Some(0),
+        ..Default::default()
+    }));
+    assert_eq!(MountGuard::new(m.clone()).finish(), Unmount::Lazy);
+}
+
+#[test]
+fn finish_reports_a_failed_unmount() {
+    // both attempts fail: the caller must not say "installed"
+    struct AlwaysFails;
+    impl Runner for AlwaysFails {
+        fn run(&mut self, _: &Cmd) -> Result<(), arch_to_go_core::runner::RunError> {
+            Err(arch_to_go_core::runner::RunError::Empty)
+        }
+        fn write_file(
+            &mut self,
+            _: &str,
+            _: &str,
+            _: u32,
+        ) -> Result<(), arch_to_go_core::runner::RunError> {
+            Ok(())
+        }
+    }
+    let r = Rc::new(RefCell::new(AlwaysFails));
+    assert_eq!(MountGuard::new(r).finish(), Unmount::Failed);
 }
