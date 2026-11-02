@@ -2,4 +2,5 @@
 pub mod config;
 pub mod exit_guard;
 pub mod runner;
+pub mod safety;
 pub mod step;
