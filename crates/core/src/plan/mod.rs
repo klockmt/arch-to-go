@@ -1,6 +1,7 @@
 //! Builds the ordered install steps from a validated `Config`. Pure: no I/O.
 
 pub mod base;
+pub mod boot;
 pub mod disk;
 
 use crate::config::{Config, ConfigError};
@@ -49,6 +50,7 @@ fn is_uuid(s: &str) -> bool {
 pub fn build(cfg: &Config, ctx: &Ctx) -> Vec<Step> {
     let mut steps = disk::disk_steps(cfg, ctx);
     steps.extend(base::base_steps(cfg, ctx));
+    steps.extend(boot::boot_steps(cfg, ctx));
     steps
 }
 
