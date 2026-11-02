@@ -118,3 +118,22 @@ fn real_runner_delivers_stdin_verbatim() {
         .with_stdin(Secret::new("u:p:a'b $x"));
     arch_to_go_core::runner::RealRunner.run(&probe).unwrap();
 }
+
+#[test]
+fn child_env_keeps_only_an_allow_list() {
+    use arch_to_go_core::runner::child_env;
+    let parent = [
+        ("PATH", "/usr/bin"),
+        ("LANG", "C"),
+        ("ARCH_ADMIN_PASSWORD", "x"),
+        ("ARCH_SUDO_PASSWORD", "y"),
+        ("GITHUB_TOKEN", "z"),
+        ("SSH_AUTH_SOCK", "/s"),
+    ]
+    .map(|(k, v)| (k.to_string(), v.to_string()));
+    let kept: Vec<String> = child_env(parent.into_iter())
+        .into_iter()
+        .map(|(k, _)| k)
+        .collect();
+    assert_eq!(kept, ["PATH", "LANG"]);
+}

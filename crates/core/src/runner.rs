@@ -27,6 +27,17 @@ pub enum RunError {
     Injected(usize),
 }
 
+/// Variables a child process may inherit. Everything else is dropped, so secrets
+/// (ARCH_ADMIN_PASSWORD, ARCH_SUDO_PASSWORD, tokens) never reach chroot commands or
+/// the downloaded build scripts of an AUR package.
+const CHILD_ENV: &[&str] = &["PATH", "LANG", "LC_ALL", "LC_CTYPE", "TERM", "HOME"];
+
+pub fn child_env(parent: impl Iterator<Item = (String, String)>) -> Vec<(String, String)> {
+    parent
+        .filter(|(k, _)| CHILD_ENV.contains(&k.as_str()))
+        .collect()
+}
+
 pub trait Runner {
     fn run(&mut self, cmd: &Cmd) -> Result<(), RunError>;
     fn write_file(&mut self, path: &str, contents: &str, mode: u32) -> Result<(), RunError>;
@@ -148,8 +159,7 @@ fn exec(cmd: &Cmd) -> Result<(), RunError> {
         let shown = cmd.argv.join(" ");
         let mut c = Command::new(prog);
         c.args(args);
-        // the password may come in through this variable; children must not inherit it
-        c.env_remove("ARCH_ADMIN_PASSWORD");
+        c.env_clear().envs(child_env(std::env::vars()));
         if cmd.stdin.is_some() {
             c.stdin(Stdio::piped());
         }
