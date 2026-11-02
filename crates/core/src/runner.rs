@@ -148,6 +148,8 @@ fn exec(cmd: &Cmd) -> Result<(), RunError> {
         let shown = cmd.argv.join(" ");
         let mut c = Command::new(prog);
         c.args(args);
+        // the password may come in through this variable; children must not inherit it
+        c.env_remove("ARCH_ADMIN_PASSWORD");
         if cmd.stdin.is_some() {
             c.stdin(Stdio::piped());
         }
