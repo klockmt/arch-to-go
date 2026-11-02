@@ -6,7 +6,7 @@ use arch_to_go_core::step::Step;
 const PARTUUID: &str = "11111111-2222-3333-4444-555555555555";
 
 fn steps(extra: &str) -> Vec<Step> {
-    let cfg = Config::from_toml(&format!("[users]\nadmin = \"tester\"\n{extra}")).unwrap();
+    let cfg = Config::from_toml(&format!("{extra}\n[users]\nadmin = \"tester\"\n")).unwrap();
     boot_steps(&cfg, &Ctx::new("/dev/sda", PARTUUID, "pw").unwrap())
 }
 

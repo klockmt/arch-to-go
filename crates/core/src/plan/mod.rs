@@ -3,6 +3,7 @@
 pub mod base;
 pub mod boot;
 pub mod disk;
+pub mod profile;
 
 use crate::config::{Config, ConfigError};
 use crate::step::{Cmd, Secret, Step};
@@ -15,6 +16,8 @@ pub struct Ctx {
     /// can name it without reading it back from the disk.
     pub root_partuuid: String,
     pub admin_password: Secret,
+    /// Host path of a prebuilt paru package, needed when `aur.paru` is set.
+    pub paru_pkg: Option<String>,
 }
 
 impl Ctx {
@@ -35,7 +38,13 @@ impl Ctx {
             disk: disk.into(),
             root_partuuid: root_partuuid.into(),
             admin_password: Secret::new(password),
+            paru_pkg: None,
         })
+    }
+
+    pub fn with_paru_pkg(mut self, path: impl Into<String>) -> Ctx {
+        self.paru_pkg = Some(path.into());
+        self
     }
 }
 
@@ -47,11 +56,17 @@ fn is_uuid(s: &str) -> bool {
             .all(|g| g.chars().all(|c| c.is_ascii_hexdigit()))
 }
 
-pub fn build(cfg: &Config, ctx: &Ctx) -> Vec<Step> {
+pub fn build(cfg: &Config, ctx: &Ctx) -> Result<Vec<Step>, ConfigError> {
+    if cfg.aur.paru && ctx.paru_pkg.is_none() {
+        return Err(ConfigError::Invalid(
+            "aur.paru needs a prebuilt paru package (the CLI builds it on the host)".into(),
+        ));
+    }
     let mut steps = disk::disk_steps(cfg, ctx);
     steps.extend(base::base_steps(cfg, ctx));
     steps.extend(boot::boot_steps(cfg, ctx));
-    steps
+    steps.extend(profile::profile_steps(cfg, ctx));
+    Ok(steps)
 }
 
 /// A command step.

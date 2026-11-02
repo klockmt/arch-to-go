@@ -1,20 +1,16 @@
 use arch_to_go_core::config::Config;
 use arch_to_go_core::plan::Ctx;
 use arch_to_go_core::plan::disk::{disk_steps, part};
-use arch_to_go_core::step::{Secret, Step};
+use arch_to_go_core::step::Step;
 
 const PARTUUID: &str = "11111111-2222-3333-4444-555555555555";
 
 fn ctx(disk: &str) -> Ctx {
-    Ctx {
-        disk: disk.into(),
-        root_partuuid: PARTUUID.into(),
-        admin_password: Secret::new("x"),
-    }
+    Ctx::new(disk, PARTUUID, "x").unwrap()
 }
 
 fn cfg(extra: &str) -> Config {
-    Config::from_toml(&format!("[users]\nadmin = \"tester\"\n{extra}")).unwrap()
+    Config::from_toml(&format!("{extra}\n[users]\nadmin = \"tester\"\n")).unwrap()
 }
 
 /// Every command as one line, in order.

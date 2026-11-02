@@ -10,7 +10,7 @@ fn ctx(password: &str) -> Ctx {
 }
 
 fn cfg(extra: &str) -> Config {
-    Config::from_toml(&format!("[users]\nadmin = \"zzadminzz\"\n{extra}")).unwrap()
+    Config::from_toml(&format!("{extra}\n[users]\nadmin = \"zzadminzz\"\n")).unwrap()
 }
 
 fn argvs(steps: &[Step]) -> Vec<Vec<String>> {
