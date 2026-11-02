@@ -1,0 +1,42 @@
+#!/bin/sh
+# Self-check; run before every commit and push. Exits 1 on any problem.
+# Looks for classes of private data with generic patterns (never stores a real value).
+cd "$(dirname "$0")/.." || exit 1
+bad=0
+fail() { echo "FAIL  $*"; bad=1; }
+ok() { echo "ok    $*"; }
+
+# 1. shell scripts parse and pass shellcheck
+for f in scripts/*; do
+	sh -n "$f" 2>/dev/null || fail "syntax error in $f"
+done
+if command -v shellcheck >/dev/null; then
+	shellcheck scripts/* || fail "shellcheck"
+fi
+[ $bad -eq 0 ] && ok "scripts parse and lint"
+
+# 2. rust: fmt, clippy, tests (skipped without a workspace or with SKIP_CARGO=1)
+if [ -z "$SKIP_CARGO" ] && [ -f Cargo.toml ]; then
+	cargo fmt --check || fail "cargo fmt"
+	cargo clippy --all-targets -- -D warnings || fail "cargo clippy"
+	cargo test || fail "cargo test"
+	[ $bad -eq 0 ] && ok "cargo fmt, clippy and tests"
+fi
+
+# 3. private data, only in files git would commit (tracked, or untracked and not ignored);
+# CHECK_ROOT (used by the test) points at a plain directory scanned as a whole
+files() {
+	if [ -n "$CHECK_ROOT" ]; then find "$CHECK_ROOT" -type f; else git ls-files; git ls-files -o --exclude-standard; fi
+}
+scan() { files | xargs -r grep -IE "$1" 2>/dev/null; }
+if scan '/home/[a-z_][a-z0-9_-]*/' >/dev/null; then fail "home path in a tracked file"; fi
+if scan '[A-Z_]*PASSWORD=[A-Za-z0-9]' >/dev/null; then fail "password value in a tracked file"; fi
+# the login name comes from .env at run time and is never written here
+if [ -f .env ]; then
+	u=$(sed -n 's/^ARCH_USER_NAME=//p' .env)
+	if [ -n "$u" ] && files | xargs -r grep -IwF "$u" >/dev/null 2>&1; then
+		fail "the user name from .env appears in a tracked file"
+	fi
+fi
+[ $bad -eq 0 ] && ok "no private data found"
+exit $bad

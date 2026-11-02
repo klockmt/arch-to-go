@@ -1,0 +1,22 @@
+#!/bin/sh
+# check-repo must fail on private data and pass on a clean tree.
+cd "$(dirname "$0")/.." || exit 1
+fails=0
+t=$(mktemp -d)
+trap 'rm -rf "$t"' EXIT
+
+expect() { # expect <exit> <label>
+	SKIP_CARGO=1 CHECK_ROOT="$t" scripts/check-repo >/dev/null 2>&1
+	rc=$?
+	if [ "$rc" -eq "$1" ]; then echo "ok    $2"; else echo "FAIL  $2 (exit $rc, wanted $1)"; fails=1; fi
+}
+
+echo "clean" >"$t/a.md"
+expect 0 "clean tree passes"
+printf 'see %s\n' "/ho""me/bob/x" >"$t/a.md"
+expect 1 "home path is rejected"
+printf 'ARCH_SUDO_PASS''WORD=%s\n' "hunter2" >"$t/a.md"
+expect 1 "password value is rejected"
+printf 'ARCH_SUDO_PASS''WORD=\n' >"$t/a.md"
+expect 0 "empty password variable is allowed"
+exit $fails
