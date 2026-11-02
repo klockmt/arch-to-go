@@ -22,4 +22,8 @@ impl SystemInfo for FixtureSystem {
     fn has_mounted(&self, _dev: &str) -> Result<bool, SafetyError> {
         Ok(self.0.join("mounted").exists())
     }
+
+    fn shares_filesystem_with_host(&self, _dev: &str) -> Result<bool, SafetyError> {
+        Ok(self.0.join("shares_fs").exists())
+    }
 }

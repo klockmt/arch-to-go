@@ -38,6 +38,9 @@ pub trait SystemInfo {
     /// Names (`sda`, `nvme0n1`) of the disks behind every mounted filesystem.
     fn host_disks(&self) -> Result<Vec<String>, SafetyError>;
     fn has_mounted(&self, dev: &str) -> Result<bool, SafetyError>;
+    /// True when a filesystem on `dev` (or its partitions) is also mounted by the host.
+    /// Catches a member of a multi-device btrfs root, which `findmnt` names only once.
+    fn shares_filesystem_with_host(&self, dev: &str) -> Result<bool, SafetyError>;
 }
 
 /// `allow_loop` lets a loop device through, for the integration test only; it
@@ -60,6 +63,9 @@ pub fn check_target(dev: &str, sys: &dyn SystemInfo, allow_loop: bool) -> Result
         return Err(SafetyError::NotUsb(dev.into(), info.tran));
     }
     if sys.host_disks()?.contains(&info.name) {
+        return Err(SafetyError::HostDisk(dev.into()));
+    }
+    if sys.shares_filesystem_with_host(dev)? {
         return Err(SafetyError::HostDisk(dev.into()));
     }
     if sys.has_mounted(dev)? {
@@ -141,5 +147,20 @@ impl SystemInfo for HostSystem {
         Ok(output("lsblk", &["-rno", "MOUNTPOINTS", dev])?
             .lines()
             .any(|l| !l.trim().is_empty()))
+    }
+
+    fn shares_filesystem_with_host(&self, dev: &str) -> Result<bool, SafetyError> {
+        let ids = |s: String| -> Vec<String> {
+            s.lines()
+                .map(str::trim)
+                .filter(|l| !l.is_empty())
+                .map(String::from)
+                .collect()
+        };
+        let target = ids(output("lsblk", &["-rno", "UUID", dev])?);
+        let host =
+            ids(output("findmnt", &["-rno", "UUID"])
+                .map_err(|_| SafetyError::HostDisksUnreadable)?);
+        Ok(target.iter().any(|u| host.contains(u)))
     }
 }

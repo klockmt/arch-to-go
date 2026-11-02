@@ -7,6 +7,7 @@ struct Fake {
     info: Option<DiskInfo>,
     host: Option<Vec<String>>, // None = host disks cannot be listed
     mounted: bool,
+    shares_fs: bool,
 }
 
 impl Fake {
@@ -19,6 +20,7 @@ impl Fake {
             }),
             host: Some(vec!["nvme0n1".into()]),
             mounted: false,
+            shares_fs: false,
         }
     }
 }
@@ -32,6 +34,9 @@ impl SystemInfo for Fake {
     }
     fn has_mounted(&self, _dev: &str) -> Result<bool, SafetyError> {
         Ok(self.mounted)
+    }
+    fn shares_filesystem_with_host(&self, _dev: &str) -> Result<bool, SafetyError> {
+        Ok(self.shares_fs)
     }
 }
 
@@ -145,4 +150,15 @@ fn loop_flag_still_refuses_host_backing_loop() {
     let mut f = loop_dev();
     f.host = Some(vec!["loop0".into()]);
     assert!(check_target("/dev/loop0", &f, true).is_err());
+}
+
+#[test]
+fn rejects_disk_sharing_a_filesystem_with_the_host() {
+    // a multi-device btrfs root: findmnt names one member, this disk is another
+    let mut f = Fake::usb("sda");
+    f.shares_fs = true;
+    assert!(matches!(
+        check_target("/dev/sda", &f, false),
+        Err(SafetyError::HostDisk(_))
+    ));
 }
