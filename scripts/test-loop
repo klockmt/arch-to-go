@@ -1,0 +1,59 @@
+#!/bin/sh
+# End-to-end install onto a loop device (a sparse file), then verify the result.
+# Needs root and network (pacstrap): scripts/arch-sudo scripts/test-loop
+# Build first, as a normal user: cargo build
+set -eu
+cd "$(dirname "$0")/.."
+# shellcheck disable=SC1091
+. scripts/env.sh
+[ "$(id -u)" -eq 0 ] || { echo "run as root: scripts/arch-sudo scripts/test-loop" >&2; exit 1; }
+bin=${ARCH_TO_GO_BIN:-target/debug/arch-to-go}
+[ -x "$bin" ] || { echo "build first: cargo build" >&2; exit 1; }
+! findmnt /mnt >/dev/null || { echo "/mnt is already mounted; refusing" >&2; exit 1; }
+
+work=$(mktemp -d)
+dev=""
+verify="$work/verify"
+# shellcheck disable=SC2329
+cleanup() {
+	umount -R "$verify" 2>/dev/null || true
+	[ -z "$dev" ] || losetup -d "$dev" 2>/dev/null || true
+	rm -rf "$work"
+}
+trap cleanup EXIT INT TERM
+
+truncate -s 8G "$work/disk.img"
+dev=$(losetup -P -f --show "$work/disk.img")
+user=${ARCH_USER_NAME:-tester}
+cat >"$work/test.toml" <<TOML
+[users]
+admin = "$user"
+[system]
+hostname = "looptest"
+TOML
+
+pw=$(head -c 12 /dev/urandom | base64)
+echo "==> installing onto $dev"
+printf '%s\n' "$dev" | ARCH_TO_GO_ALLOW_LOOP=1 ARCH_ADMIN_PASSWORD="$pw" "$bin" install "$dev" --config "$work/test.toml"
+
+fail=0
+check() { # check <description> <command...>
+	d=$1
+	shift
+	if "$@" >/dev/null 2>&1; then echo "ok    $d"; else echo "FAIL  $d"; fail=1; fi
+}
+
+check "/mnt is unmounted" sh -c '! findmnt /mnt'
+mkdir -p "$verify"
+mount -o ro,subvol=@ "${dev}p2" "$verify"
+mount -o ro "${dev}p1" "$verify/boot"
+check "BOOTX64.EFI on the removable path" test -f "$verify/boot/EFI/BOOT/BOOTX64.EFI"
+check "limine.conf" test -f "$verify/boot/limine.conf"
+check "kernel in /boot" test -f "$verify/boot/vmlinuz-linux"
+check "initramfs in /boot" test -f "$verify/boot/initramfs-linux.img"
+check "hostname" grep -qx looptest "$verify/etc/hostname"
+check "fstab mounts by UUID" grep -q '^UUID=' "$verify/etc/fstab"
+check "admin user exists" grep -q "^$user:" "$verify/etc/passwd"
+check "wheel sudoers" test -f "$verify/etc/sudoers.d/10-wheel"
+check "partition GUID matches limine.conf" sh -c "grep -o 'PARTUUID=[0-9a-f-]*' '$verify/boot/limine.conf' | head -1 | cut -d= -f2 | grep -qix \"\$(blkid -s PARTUUID -o value ${dev}p2)\""
+exit $fail
