@@ -1,52 +1,89 @@
 # arch-to-go
 
-Instala Arch Linux (rolling) com Hyprland num SSD USB externo, sem tocar no disco do sistema.
+Installs a portable Arch Linux (UEFI x86_64) onto removable storage, in the spirit of
+Windows To Go. It borrows archinstall's idea: a declarative config with the usual options,
+or interactive prompts. A TUI will follow on the same core.
 
-## Uso
+The drive boots on any 64-bit UEFI PC: Limine goes on the removable path
+(`EFI/BOOT/BOOTX64.EFI`, no NVRAM write on the machine you install from) and the initramfs
+has no `autodetect`.
 
-Rode a partir de um usuário comum com `sudo` disponível, com o SSD conectado:
+> Status: see [docs/STATUS.md](docs/STATUS.md) for what has and has not been run.
 
-```sh
-sudo ./install.sh /dev/sdX           # instala de verdade
-./install.sh /dev/sdX --dry-run      # só mostra os comandos, não altera nada
-```
-
-Antes de instalar, o script:
-
-1. Recusa o disco se ele não for USB, se não for disco inteiro, se tiver partição montada ou se for um disco do sistema atual.
-2. Mostra o `lsblk` do alvo e pede que você digite o caminho exato (ex.: `/dev/sdb`).
-
-O instalador pergunta o nome e a senha da conta. Essa conta entra no grupo `wheel` (sudo) e recebe a mesma senha como root.
-
-Variáveis opcionais: `ARCH_HOSTNAME`, `ARCH_LOCALE`, `ARCH_TZ`, `ESP_SIZE`, `BTRFS_OPTS`, `LY_UNIT`.
-
-## O que acontece
-
-- **Apaga tudo** no disco informado (tabela GPT, ESP e btrfs).
-- ESP FAT32 de 1 GiB em `/boot` e btrfs no restante, com subvolumes `@`, `@home`, `@log` e `@pkg`.
-- Montagem com `noatime,ssd,discard=async,nodatacow`.
-- Base: `base linux linux-firmware btrfs-progs sudo`, fstab por UUID, initramfs sem `autodetect`.
-- Bootloader Limine instalado como removível (`EFI/BOOT/BOOTX64.EFI`). A NVRAM do computador onde você roda o instalador não é alterada.
-- Desktop: Hyprland, kitty, fish, nautilus, `ttf-dejavu`. Login pelo ly (`LY_UNIT`, padrão `ly@tty1.service`).
-- Rede: iwd só para Wi-Fi; systemd-networkd faz DHCP; systemd-resolved faz DNS.
-- tuned e tuned-ppd habilitados.
-- paru compilado no host e instalado no alvo com `pacman -U`.
-
-## Avisos
-
-- **nodatacow** desliga CoW e checksums do btrfs. Um erro de disco ou de USB pode corromper dados sem aviso. Para voltar ao padrão, ajuste `BTRFS_OPTS` (sem `nodatacow`) antes de instalar.
-- Para usar o SSD depois, escolha-o no menu de boot da placa (UEFI). O Limine está no caminho removível, então a placa acha sem entrada na NVRAM.
-- Atualizações do pacote `limine` recopiam o EFI pelo hook em `/etc/pacman.d/hooks/limine.hook`.
-
-## Testes
+## Build and run
 
 ```sh
-cargo test               # inclui as checagens de disco, com lsblk/findmnt simulados
-shellcheck install.sh lib/*.sh
+cargo build --release
+arch-to-go check-config my.toml
+arch-to-go install /dev/sdX --config my.toml --dry-run   # prints the plan, runs nothing
+sudo arch-to-go install /dev/sdX --config my.toml        # erases /dev/sdX
 ```
 
-## Pendências (fora desta etapa)
+Without `--config` it asks the questions and builds the same config. `DRY_RUN=1` works like
+`--dry-run`. The password is asked twice (hidden), or read from `ARCH_ADMIN_PASSWORD`; it never
+goes in the config file (unknown keys are rejected) and is never printed. The admin account gets
+`wheel`/sudo and the same password is set for root.
 
-- Kernel mainline com script de compilação.
-- App "hello" em Rust com iced (fork do CachyOS Hello).
-- Teste de ponta a ponta em loop device antes do disco real.
+Host tools needed: `sgdisk`, `wipefs`, `partprobe`, `mkfs.fat`, `mkfs.btrfs` (or ext4/xfs
+tools), `pacstrap`, `genfstab`, `arch-chroot`. For `aur.paru`: `git`, `makepkg`, and `sudo`
+from a normal user (makepkg refuses root).
+
+## Safety
+
+Before anything is written the installer refuses a target that is not a whole USB disk, backs
+a mounted filesystem of the running system, or has mounted partitions. You must then type the
+exact device path. If it cannot inspect the system it refuses. `/mnt` is unmounted on exit and
+on Ctrl-C.
+
+## Config
+
+```toml
+[users]
+admin = "me"            # required
+
+[system]                # defaults shown
+hostname = "archtogo"
+locale = "pt_BR.UTF-8"
+keymap = "br-abnt2"
+timezone = "America/Sao_Paulo"
+
+[disk]
+fs = "btrfs"            # btrfs | ext4 | xfs
+esp_size = "1G"
+# subvolumes = ["@", "@home", "@log", "@pkg"]   # btrfs only
+nodatacow = false       # turns off CoW and checksums; a USB error can corrupt data silently
+zram = false
+
+[boot]
+kernels = ["linux"]     # linux | linux-lts | linux-zen
+
+[profile]
+name = "minimal"        # minimal | hyprland | gnome | kde
+audio = false           # pipewire
+
+[network]
+backend = "iwd-networkd"  # iwd-networkd | network-manager
+
+[aur]
+paru = false
+
+[portable]
+firmware = true         # linux-firmware, microcode, sof-firmware
+gpu_drivers = true      # mesa, vulkan-radeon, vulkan-intel, intel-media-driver
+
+packages = ["vim"]      # extra packages (top level, before any [table])
+services = ["sshd.service"]
+```
+
+`system.mirror_region` is not an option yet. The installed system uses the official Arch
+mirrors from `crates/core/assets/pacman.conf`.
+
+## Development
+
+```sh
+scripts/check-repo          # fmt, clippy, tests, shellcheck, private-data scan
+scripts/arch-sudo scripts/test-loop   # end to end on a loop device (needs the loop module)
+```
+
+Local values (sudo password, test user and device) live in `.env`; copy `.env.example`.
+Design: `docs/superpowers/specs/`, plan: `docs/superpowers/plans/`.
