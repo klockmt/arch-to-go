@@ -261,3 +261,21 @@ fn timezone_and_locale_generation_run_in_the_chroot() {
             .any(|c| c == &["arch-chroot", "/mnt", "locale-gen"])
     );
 }
+
+#[test]
+fn target_mirrorlist_is_official_and_written_after_pacstrap() {
+    // pacstrap copies the host's mirrorlist (a CachyOS mirror 404ed on a real install)
+    let steps = base_steps(&cfg(""), &ctx("pw"));
+    let list = file(&steps, "/mnt/etc/pacman.d/mirrorlist");
+    assert!(
+        list.contains("Server = https://geo.mirror.pkgbuild.com/$repo/os/$arch"),
+        "{list}"
+    );
+    assert!(!list.contains("cachyos"));
+    let at = |pred: &dyn Fn(&Step) -> bool| steps.iter().position(pred).unwrap();
+    let pacstrap = at(&|s| matches!(s, Step::Run { cmd, .. } if cmd.argv[0] == "pacstrap"));
+    let mirrors = at(
+        &|s| matches!(s, Step::WriteFile { path, .. } if path == "/mnt/etc/pacman.d/mirrorlist"),
+    );
+    assert!(pacstrap < mirrors);
+}

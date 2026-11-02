@@ -6,6 +6,9 @@ use crate::step::{Cmd, Secret, Step};
 
 const PACMAN_CONF: &str = include_str!("../../assets/pacman.conf");
 const SCRATCH: &str = "/mnt/.arch-to-go";
+/// The same official mirrors as the scratch pacman.conf. pacstrap copies the host's
+/// mirrorlist, which may point at another distro's mirror.
+const MIRRORLIST: &str = "Server = https://geo.mirror.pkgbuild.com/$repo/os/$arch\nServer = https://fastly.mirror.pkgbuild.com/$repo/os/$arch\nServer = https://mirror.rackspace.com/archlinux/$repo/os/$arch\n";
 
 fn chroot(desc: &str, argv: &[&str]) -> Step {
     let mut full = vec!["arch-chroot", "/mnt"];
@@ -66,6 +69,12 @@ pub fn base_steps(cfg: &Config, ctx: &Ctx) -> Vec<Step> {
         write("scratch pacman.conf", &conf, PACMAN_CONF, 0o644),
         run("install base system", &pacstrap),
         run("remove scratch pacman.conf", &["rm", "-rf", SCRATCH]),
+        write(
+            "official mirrorlist",
+            "/mnt/etc/pacman.d/mirrorlist",
+            MIRRORLIST,
+            0o644,
+        ),
         // the redirect needs a shell; the command line has no config values
         run(
             "write fstab (by UUID)",
