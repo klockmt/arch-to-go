@@ -1,4 +1,4 @@
-//! paru is built on the host as a normal user (makepkg refuses root) and the
+//! paru-bin is packaged on the host as a normal user (makepkg refuses root) and the
 //! package is installed into the target with `pacman -U`.
 
 use arch_to_go_core::runner::child_env;
@@ -31,6 +31,9 @@ fn run(user: &str, dir: Option<&Path>, argv: &[&str]) -> Result<(), String> {
     }
 }
 
+/// The AUR's prebuilt paru: upstream's release binary, built on Arch, not on this host.
+const PARU_REPO: &str = "https://aur.archlinux.org/paru-bin.git";
+
 fn find_pkg(dir: &Path) -> Option<PathBuf> {
     std::fs::read_dir(dir)
         .ok()?
@@ -54,7 +57,7 @@ pub fn build() -> Result<String, String> {
         return Err("aur.paru: run with sudo from a normal user; makepkg refuses root".into());
     }
     let build = work.join("build");
-    let src = build.join("paru");
+    let src = build.join("paru-bin");
     run(&user, None, &["mkdir", "-p", &build.to_string_lossy()])?;
     std::fs::create_dir_all(&cache).map_err(|e| e.to_string())?;
     let _ = std::fs::remove_dir_all(&src);
@@ -66,7 +69,7 @@ pub fn build() -> Result<String, String> {
             "clone",
             "--depth",
             "1",
-            "https://aur.archlinux.org/paru.git",
+            PARU_REPO,
             &src.to_string_lossy(),
         ],
     )?;
@@ -80,6 +83,26 @@ pub fn build() -> Result<String, String> {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn paru_comes_from_the_prebuilt_package_not_a_host_build() {
+        // building on the host bakes in its -march=native and CachyOS's libalpm, which
+        // would not run on the other PCs a portable stick is meant for
+        assert!(PARU_REPO.ends_with("/paru-bin.git"), "{PARU_REPO}");
+    }
+
+    #[test]
+    fn debug_packages_are_not_picked() {
+        let d = tempfile::tempdir().unwrap();
+        for n in [
+            "paru-debug-2.1.0-1-x86_64.pkg.tar.zst",
+            "paru-bin-2.1.0-1-x86_64.pkg.tar.zst",
+        ] {
+            std::fs::write(d.path().join(n), "").unwrap();
+        }
+        let p = find_pkg(d.path()).unwrap();
+        assert!(p.to_string_lossy().contains("paru-bin-"), "{p:?}");
+    }
 
     #[test]
     fn home_is_read_from_passwd() {
