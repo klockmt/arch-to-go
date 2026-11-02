@@ -26,6 +26,11 @@
   development host.
 
 ## Known gaps
+- Deferred from the final review: `/mnt` is not checked empty before mounting; only Ctrl-C is
+  handled (not SIGHUP/SIGTERM); `esp_size` has no lower bound; any btrfs subvolume name becomes a
+  mountpoint (`@usr`, `@etc`, `@boot` would not boot); an unknown timezone or keymap fails late or
+  falls back silently; the cached paru package is never aged out; the disk serial is not compared
+  between the confirmation and the wipe; ZFS pools are not detected as host filesystems.
 - `system.mirror_region` is validated but not applied.
 - During pacstrap, pacman's own mkinitcpio hook prints `call to execv failed`; harmless here
   because the installer writes presets and runs `mkinitcpio -P` itself.
