@@ -1,7 +1,7 @@
 use arch_to_go_core::config::{Config, Fs, Kernel};
 
 fn parse(extra: &str) -> Result<Config, arch_to_go_core::config::ConfigError> {
-    Config::from_toml(&format!("[users]\nadmin = \"tester\"\n{extra}"))
+    Config::from_toml(&format!("{extra}\n[users]\nadmin = \"tester\"\n"))
 }
 
 #[test]
@@ -45,12 +45,23 @@ fn duplicate_kernel_rejected() {
 
 #[test]
 fn duplicate_package_rejected() {
-    assert!(parse("packages = [\"vim\", \"vim\"]\n").is_err());
+    let e = parse("packages = [\"vim\", \"vim\"]\n")
+        .unwrap_err()
+        .to_string();
+    assert!(e.contains("duplicate package"), "{e}");
 }
 
 #[test]
 fn bad_package_name_rejected() {
-    assert!(parse("packages = [\"vim; rm\"]\n").is_err());
+    let e = parse("packages = [\"vim; rm\"]\n").unwrap_err().to_string();
+    assert!(e.contains("package name"), "{e}");
+}
+
+#[test]
+fn valid_top_level_lists_are_accepted() {
+    let cfg = parse("packages = [\"vim\"]\nservices = [\"sshd.service\"]\n").unwrap();
+    assert_eq!(cfg.packages, ["vim"]);
+    assert_eq!(cfg.services, ["sshd.service"]);
 }
 
 #[test]
