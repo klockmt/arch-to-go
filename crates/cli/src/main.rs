@@ -71,7 +71,10 @@ fn load(file: &PathBuf) -> Result<Config, String> {
 fn system() -> (Box<dyn SystemInfo>, bool) {
     #[cfg(debug_assertions)]
     if let Ok(dir) = std::env::var("ARCH_TO_GO_SYSINFO_DIR") {
-        return (Box::new(fixture::FixtureSystem(dir.into())), true);
+        return (
+            Box::new(fixture::FixtureSystem(dir.into(), Default::default())),
+            true,
+        );
     }
     (Box::new(HostSystem), false)
 }
@@ -94,12 +97,8 @@ fn install(device: &str, config: Option<PathBuf>, dry: bool) -> Result<(), Strin
     if !dry && !is_root() {
         return Err("a real install needs root (or use --dry-run)".into());
     }
-    check_target(
-        device,
-        sys.as_ref(),
-        std::env::var("ARCH_TO_GO_ALLOW_LOOP").is_ok_and(|v| v == "1"),
-    )
-    .map_err(|e| e.to_string())?;
+    let allow_loop = std::env::var("ARCH_TO_GO_ALLOW_LOOP").is_ok_and(|v| v == "1");
+    check_target(device, sys.as_ref(), allow_loop).map_err(|e| e.to_string())?;
 
     if !fake {
         let _ = std::process::Command::new("lsblk")
@@ -133,6 +132,9 @@ fn install(device: &str, config: Option<PathBuf>, dry: bool) -> Result<(), Strin
         });
     }
     let steps = build(&cfg, &ctx).map_err(|e| e.to_string())?;
+    // the confirmation, the password prompt and a paru build can take minutes: the
+    // name may now belong to another disk, so inspect it again right before the wipe
+    check_target(device, sys.as_ref(), allow_loop).map_err(|e| e.to_string())?;
 
     if dry {
         return execute(&steps, &mut DryRunner::new(std::io::stdout())).map_err(|e| e.to_string());

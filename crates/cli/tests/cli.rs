@@ -212,3 +212,23 @@ fn loop_device_needs_the_env_flag() {
     assert!(o.status.success(), "{}", text(&o));
     assert!(text(&o).contains("/dev/loop0p1"), "{}", text(&o));
 }
+
+#[test]
+fn disk_is_checked_again_right_before_the_wipe() {
+    // the stick is swapped while the password or a long paru build is pending:
+    // the second inspection sees a SATA disk behind the same name
+    let fix = fixture("usb");
+    std::fs::write(fix.path().join("disk_info.2"), "sdz disk sata\n").unwrap();
+    let cfg = config(fix.path(), "");
+    let o = run(
+        &fix,
+        &["install", "/dev/sdz", "--config", &cfg, "--dry-run"],
+    );
+    let t = text(&o);
+    assert!(!o.status.success(), "{t}");
+    assert!(t.contains("USB"), "{t}");
+    assert!(
+        !t.contains("[dry-run]"),
+        "nothing may run after the failed recheck:\n{t}"
+    );
+}

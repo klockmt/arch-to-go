@@ -2,14 +2,24 @@
 //! output. Debug builds only, and the CLI refuses it for a real run.
 
 use arch_to_go_core::safety::{DiskInfo, SafetyError, SystemInfo, parse_disk_info};
+use std::cell::Cell;
 use std::path::PathBuf;
 
-pub struct FixtureSystem(pub PathBuf);
+/// `disk_info.2`, when present, is what every inspection after the first sees: it
+/// simulates the disk changing between the check and the wipe.
+pub struct FixtureSystem(pub PathBuf, pub Cell<u32>);
 
 impl SystemInfo for FixtureSystem {
     fn disk_info(&self, dev: &str) -> Result<DiskInfo, SafetyError> {
-        let s = std::fs::read_to_string(self.0.join("disk_info"))
-            .map_err(|_| SafetyError::NotADevice(dev.into()))?;
+        let n = self.1.get();
+        self.1.set(n + 1);
+        let later = self.0.join("disk_info.2");
+        let file = if n >= 1 && later.exists() {
+            later
+        } else {
+            self.0.join("disk_info")
+        };
+        let s = std::fs::read_to_string(file).map_err(|_| SafetyError::NotADevice(dev.into()))?;
         parse_disk_info(&s)
     }
 
