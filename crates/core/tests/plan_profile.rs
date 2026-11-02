@@ -115,11 +115,17 @@ fn iwd_networkd_writes_both_configs_and_resolv_symlink() {
         include_str!("../assets/20-dhcp.network")
     );
     let a = argvs(&s);
+    // outside the chroot: arch-chroot bind-mounts the host's resolv.conf over /etc/resolv.conf,
+    // so replacing it from inside fails with "Device or resource busy"
     assert!(
         a.contains(
-            &"arch-chroot /mnt ln -sf /run/systemd/resolve/stub-resolv.conf /etc/resolv.conf"
-                .to_string()
-        )
+            &"ln -sf ../run/systemd/resolve/stub-resolv.conf /mnt/etc/resolv.conf".to_string()
+        ),
+        "{a:#?}"
+    );
+    assert!(
+        a.iter()
+            .all(|c| !(c.starts_with("arch-chroot") && c.contains("resolv.conf")))
     );
     let enable = a
         .iter()

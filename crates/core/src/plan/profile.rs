@@ -138,13 +138,15 @@ pub fn profile_steps(cfg: &Config, ctx: &Ctx) -> Vec<Step> {
             DHCP_NETWORK,
             0o644,
         ));
-        s.push(chroot(
+        // outside the chroot: arch-chroot bind-mounts the host's resolv.conf over
+        // /etc/resolv.conf, so replacing it from inside fails ("Device or resource busy")
+        s.push(run(
             "resolv.conf via resolved",
             &[
                 "ln",
                 "-sf",
-                "/run/systemd/resolve/stub-resolv.conf",
-                "/etc/resolv.conf",
+                "../run/systemd/resolve/stub-resolv.conf",
+                "/mnt/etc/resolv.conf",
             ],
         ));
     }
