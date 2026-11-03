@@ -2,6 +2,7 @@
 //! tested without a terminal. The runtime performs the effects.
 
 use crate::disks::Disk;
+use crate::editors::Edit;
 use arch_to_go_core::config::Config;
 use arch_to_go_core::step::Secret;
 use ratatui::crossterm::event::{KeyCode, KeyEvent, KeyModifiers};
@@ -92,6 +93,11 @@ pub struct App {
     pub exit_code: Option<i32>,
     pub message: Option<String>,
     menu_cursor: usize,
+    // section editor state (see editors.rs)
+    pub(crate) cursor: usize,
+    pub(crate) edit: Option<Edit>,
+    pub(crate) pw_first: String,
+    pub(crate) pw_repeat: String,
 }
 
 /// A valid config with an empty admin name, so a fresh app starts invalid.
@@ -116,6 +122,10 @@ impl App {
             exit_code: None,
             message: None,
             menu_cursor: 0,
+            cursor: 0,
+            edit: None,
+            pw_first: String::new(),
+            pw_repeat: String::new(),
         }
     }
 
@@ -221,10 +231,8 @@ impl App {
     pub fn handle_key(&mut self, key: KeyEvent) -> Effect {
         match self.screen {
             Screen::Menu => self.menu_key(key),
-            Screen::Section(_) => {
-                if key.code == KeyCode::Esc {
-                    self.screen = Screen::Menu;
-                }
+            Screen::Section(s) => {
+                self.section_key(s, key);
                 Effect::None
             }
             _ => Effect::None,
@@ -248,6 +256,7 @@ impl App {
             KeyCode::Char('q') => Effect::Quit,
             KeyCode::Enter => match MENU[self.menu_cursor].1 {
                 Action::Open(s) => {
+                    self.cursor = 0;
                     self.screen = Screen::Section(s);
                     Effect::None
                 }

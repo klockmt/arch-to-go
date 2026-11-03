@@ -2,4 +2,5 @@
 
 pub mod app;
 pub mod disks;
+pub mod editors;
 pub mod progress;
