@@ -11,3 +11,4 @@ What broke, why, and the test that keeps it from breaking again.
 | The admin password was readable by the downloaded AUR build | only one variable was stripped, and not for the paru build | `runner::child_env_keeps_only_an_allow_list` |
 | paru built on the host used `-march=native` and CachyOS's libalpm | host makepkg.conf; not portable | `paru::paru_comes_from_the_prebuilt_package_not_a_host_build` |
 | "installed" printed with writes unflushed or only a lazy unmount | no sync; unmount errors dropped | `plan_all::plan_ends_with_sync`, `runner::finish_*` |
+| Every install ended with "/mnt was only unmounted lazily" and a loop device stayed attached | a gpg-agent started by pacstrap/chroot pacman kept the target keyring open | `plan_all::gpg_agent_is_stopped_before_the_final_sync` |
