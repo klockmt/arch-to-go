@@ -124,3 +124,32 @@ fn kernels_parse_from_strings() {
     let cfg = parse("[boot]\nkernels = [\"linux\", \"linux-lts\"]\n").unwrap();
     assert_eq!(cfg.boot.kernels, vec![Kernel::Linux, Kernel::LinuxLts]);
 }
+
+fn full_config() -> Config {
+    Config::from_toml(
+        "packages = [\"vim\"]\n[disk]\nfs = \"xfs\"\n[boot]\nkernels = [\"linux\", \"linux-lts\"]\n[profile]\nname = \"hyprland\"\n[network]\nbackend = \"network-manager\"\n[users]\nadmin = \"tester\"\n",
+    )
+    .unwrap()
+}
+
+#[test]
+fn to_toml_round_trips() {
+    let cfg = full_config();
+    assert_eq!(Config::from_toml(&cfg.to_toml().unwrap()).unwrap(), cfg);
+}
+
+#[test]
+fn to_toml_has_no_password_key() {
+    assert!(!full_config().to_toml().unwrap().contains("password"));
+}
+
+#[test]
+fn to_toml_skips_unset_options() {
+    let out = Config::from_toml(include_str!("fixtures/minimal.toml"))
+        .unwrap()
+        .to_toml()
+        .unwrap();
+    for key in ["target", "subvolumes", "mirror_region"] {
+        assert!(!out.contains(key), "{key} in {out}");
+    }
+}

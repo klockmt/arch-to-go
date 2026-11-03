@@ -3,7 +3,7 @@
 //!
 //! No password lives here: unknown keys are rejected, so `password = ...` fails.
 
-use serde::Deserialize;
+use serde::{Deserialize, Serialize};
 
 #[derive(Debug, thiserror::Error)]
 pub enum ConfigError {
@@ -17,7 +17,7 @@ fn bad<T>(msg: impl Into<String>) -> Result<T, ConfigError> {
     Err(ConfigError::Invalid(msg.into()))
 }
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Deserialize)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Deserialize, Serialize)]
 #[serde(rename_all = "lowercase")]
 pub enum Fs {
     Btrfs,
@@ -25,7 +25,7 @@ pub enum Fs {
     Xfs,
 }
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Deserialize)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Deserialize, Serialize)]
 pub enum Kernel {
     #[serde(rename = "linux")]
     Linux,
@@ -46,14 +46,14 @@ impl Kernel {
     }
 }
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Deserialize)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Deserialize, Serialize)]
 #[serde(rename_all = "kebab-case")]
 pub enum NetworkBackend {
     IwdNetworkd,
     NetworkManager,
 }
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Deserialize)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Deserialize, Serialize)]
 #[serde(rename_all = "lowercase")]
 pub enum Profile {
     Minimal,
@@ -62,14 +62,16 @@ pub enum Profile {
     Kde,
 }
 
-#[derive(Debug, Clone, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Deserialize, Serialize)]
 #[serde(default, deny_unknown_fields)]
 pub struct DiskCfg {
     /// Optional; the CLI device argument overrides it.
+    #[serde(skip_serializing_if = "Option::is_none")]
     pub target: Option<String>,
     pub fs: Fs,
     pub esp_size: String,
     /// `None` means the default for the filesystem (see `effective_subvolumes`).
+    #[serde(skip_serializing_if = "Option::is_none")]
     pub subvolumes: Option<Vec<String>>,
     pub nodatacow: bool,
     pub zram: bool,
@@ -98,7 +100,7 @@ impl DiskCfg {
     }
 }
 
-#[derive(Debug, Clone, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Deserialize, Serialize)]
 #[serde(default, deny_unknown_fields)]
 pub struct BootCfg {
     pub kernels: Vec<Kernel>,
@@ -112,13 +114,14 @@ impl Default for BootCfg {
     }
 }
 
-#[derive(Debug, Clone, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Deserialize, Serialize)]
 #[serde(default, deny_unknown_fields)]
 pub struct SystemCfg {
     pub hostname: String,
     pub locale: String,
     pub keymap: String,
     pub timezone: String,
+    #[serde(skip_serializing_if = "Option::is_none")]
     pub mirror_region: Option<String>,
 }
 
@@ -134,13 +137,13 @@ impl Default for SystemCfg {
     }
 }
 
-#[derive(Debug, Clone, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Deserialize, Serialize)]
 #[serde(deny_unknown_fields)]
 pub struct UsersCfg {
     pub admin: String,
 }
 
-#[derive(Debug, Clone, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Deserialize, Serialize)]
 #[serde(default, deny_unknown_fields)]
 pub struct ProfileCfg {
     pub name: Profile,
@@ -156,7 +159,7 @@ impl Default for ProfileCfg {
     }
 }
 
-#[derive(Debug, Clone, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Deserialize, Serialize)]
 #[serde(default, deny_unknown_fields)]
 pub struct NetworkCfg {
     pub backend: NetworkBackend,
@@ -170,13 +173,13 @@ impl Default for NetworkCfg {
     }
 }
 
-#[derive(Debug, Clone, Default, Deserialize)]
+#[derive(Debug, Clone, Default, PartialEq, Deserialize, Serialize)]
 #[serde(default, deny_unknown_fields)]
 pub struct AurCfg {
     pub paru: bool,
 }
 
-#[derive(Debug, Clone, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Deserialize, Serialize)]
 #[serde(default, deny_unknown_fields)]
 pub struct PortableCfg {
     pub firmware: bool,
@@ -192,7 +195,7 @@ impl Default for PortableCfg {
     }
 }
 
-#[derive(Debug, Clone, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Deserialize, Serialize)]
 #[serde(deny_unknown_fields)]
 pub struct Config {
     #[serde(default)]
@@ -279,6 +282,11 @@ impl Config {
         let cfg: Config = toml::from_str(s)?;
         cfg.validate()?;
         Ok(cfg)
+    }
+
+    /// The config as TOML, for saving. There is no password field, so none can be written.
+    pub fn to_toml(&self) -> Result<String, ConfigError> {
+        toml::to_string(self).map_err(|e| ConfigError::Invalid(e.to_string()))
     }
 
     pub fn validate(&self) -> Result<(), ConfigError> {
