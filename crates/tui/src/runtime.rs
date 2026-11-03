@@ -10,12 +10,14 @@ use ratatui::crossterm::event::{self, Event, KeyEventKind};
 use std::io::IsTerminal;
 use std::os::unix::fs::PermissionsExt;
 use std::path::{Path, PathBuf};
-use std::sync::mpsc::TryRecvError;
-use std::time::Duration;
+use std::sync::mpsc::{RecvTimeoutError, TryRecvError};
+use std::time::{Duration, Instant};
 use tempfile::TempDir;
 
 pub struct Runtime {
     exe: PathBuf,
+    /// How long the plan preview may run before it is interrupted.
+    pub review_timeout: Duration,
     /// Private directory holding the config file the child reads; removed when the child ends.
     tmp: Option<TempDir>,
     child: Option<Child>,
@@ -25,6 +27,7 @@ impl Runtime {
     pub fn new(exe: PathBuf) -> Runtime {
         Runtime {
             exe,
+            review_timeout: Duration::from_secs(30),
             tmp: None,
             child: None,
         }
@@ -112,15 +115,33 @@ impl Runtime {
             }
         };
         let mut lines = Vec::new();
+        let deadline = Instant::now() + self.review_timeout;
+        let mut timed_out = false;
         let code = loop {
-            match child.rx.recv() {
+            let left = deadline.saturating_duration_since(Instant::now());
+            match child.rx.recv_timeout(left) {
                 Ok(ChildEvent::Line(l)) => lines.push(l),
                 Ok(ChildEvent::Exited(c)) => break c,
-                Err(_) => break 127,
+                Err(RecvTimeoutError::Timeout) => {
+                    // a dry run that hangs (lsblk on a dead device) must not freeze the screen
+                    timed_out = true;
+                    child.interrupt();
+                    let end = Instant::now() + Duration::from_secs(5);
+                    while let Ok(ChildEvent::Line(l)) = child
+                        .rx
+                        .recv_timeout(end.saturating_duration_since(Instant::now()))
+                    {
+                        lines.push(l);
+                    }
+                    break 124;
+                }
+                Err(RecvTimeoutError::Disconnected) => break 127,
             }
         };
         self.tmp = None;
-        if code != 0 {
+        if timed_out {
+            app.message = Some("the preview timed out and was stopped".into());
+        } else if code != 0 {
             app.message = Some(format!("the dry run failed (exit {code})"));
         }
         app.set_review(lines);
@@ -185,6 +206,25 @@ impl Runtime {
             app.on_event(ChildEvent::Exited(127));
             self.child = None;
             self.tmp = None;
+        }
+    }
+}
+
+impl Drop for Runtime {
+    /// If the TUI itself ends (an error, a panic) while an install runs, stop it cleanly and wait
+    /// for its cleanup instead of leaving a half-finished install with nobody watching.
+    fn drop(&mut self) {
+        if let Some(c) = self.child.take() {
+            eprintln!("stopping the install, please wait...");
+            c.interrupt();
+            let end = Instant::now() + Duration::from_secs(60);
+            while let Ok(ev) =
+                c.rx.recv_timeout(end.saturating_duration_since(Instant::now()))
+            {
+                if matches!(ev, ChildEvent::Exited(_)) {
+                    break;
+                }
+            }
         }
     }
 }

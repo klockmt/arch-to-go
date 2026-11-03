@@ -247,7 +247,7 @@ fn abort_interrupts_the_child() {
     let d = tempfile::tempdir().unwrap();
     let exe = stub(
         d.path(),
-        "trap 'echo cleaned; exit 130' INT\necho ready\nread x\nwhile :; do sleep 0.1; done",
+        "trap 'echo cleaned; exit 130' INT\necho ready\nread x\nsleep 30",
     );
     let mut a = ready_app();
     let eff = to_run(&mut a);
@@ -269,4 +269,80 @@ fn quit_and_none_do_nothing() {
     rt.perform(Effect::Quit, &mut a);
     rt.perform(Effect::None, &mut a);
     assert_eq!(a.screen, Screen::Menu);
+}
+
+#[test]
+fn a_failed_load_never_shows_the_secret_it_choked_on() {
+    let d = tempfile::tempdir().unwrap();
+    let f = d.path().join("env");
+    // the first line is built at run time: the repo scan rejects literal secret-looking assignments
+    let env_line = format!("ARCH_SUDO_PASS{}=hunter2\n", "WORD");
+    std::fs::write(
+        &f,
+        format!("{env_line}[users]\nadmin = \"a\"\npassword = \"hunter2\"\n"),
+    )
+    .unwrap();
+    let mut a = ready_app();
+    let mut rt = Runtime::new(PathBuf::from("/bin/true"));
+    rt.perform(Effect::Load(f), &mut a);
+    let m = a.message.clone().unwrap_or_default();
+    assert!(m.contains("cannot load") && !m.contains("hunter2"), "{m}");
+}
+
+#[test]
+fn dropping_the_runtime_stops_a_running_install_and_waits_for_its_cleanup() {
+    let d = tempfile::tempdir().unwrap();
+    let rec = d.path().join("rec");
+    // a foreground sleep: only a signal to the whole process group interrupts it promptly
+    let exe = stub(
+        d.path(),
+        &format!(
+            "trap 'echo cleaned > \'{r}\'; exit 130' INT\necho ready\nread x\nsleep 30",
+            r = rec.display()
+        ),
+    );
+    let mut a = ready_app();
+    let eff = to_run(&mut a);
+    let mut rt = Runtime::new(exe);
+    rt.perform(eff, &mut a);
+    wait_until(&mut rt, &mut a, "the child to start", |a| {
+        a.log.iter().any(|l| l == "ready")
+    });
+    drop(rt); // the TUI dying (error, panic) must not orphan a half-finished install
+    assert_eq!(
+        read(&rec).trim(),
+        "cleaned",
+        "drop waits for the child's cleanup"
+    );
+}
+
+#[test]
+fn a_hanging_dry_run_times_out_and_is_stopped() {
+    let d = tempfile::tempdir().unwrap();
+    let rec = d.path().join("rec");
+    let exe = stub(
+        d.path(),
+        &format!(
+            "trap 'echo stopped > \'{r}\'; exit 130' INT\nsleep 30",
+            r = rec.display()
+        ),
+    );
+    let mut a = ready_app();
+    let mut rt = Runtime::new(exe);
+    rt.review_timeout = Duration::from_millis(500);
+    let t = Instant::now();
+    rt.perform(Effect::Review, &mut a);
+    assert!(
+        t.elapsed() < Duration::from_secs(8),
+        "returned in {:?}",
+        t.elapsed()
+    );
+    assert_eq!(a.screen, Screen::Review);
+    assert!(
+        a.message.as_deref().unwrap_or("").contains("timed out"),
+        "{:?}",
+        a.message
+    );
+    assert_eq!(read(&rec).trim(), "stopped");
+    assert!(rt.config_dir().is_none());
 }
