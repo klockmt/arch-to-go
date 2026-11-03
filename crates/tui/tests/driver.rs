@@ -2,7 +2,7 @@ use arch_to_go_tui::app::ChildEvent;
 mod common;
 
 use arch_to_go_tui::driver::{Child, install_args};
-use common::{spawn, stub};
+use common::stub;
 use std::path::Path;
 use std::time::Duration;
 
@@ -32,7 +32,7 @@ fn line(s: &str) -> ChildEvent {
 fn lines_and_exit_code_arrive_in_order() {
     let d = tempfile::tempdir().unwrap();
     let exe = stub(d.path(), "echo '==> one'; echo plain; exit 0");
-    let c = spawn(&exe, &[], &[]).unwrap();
+    let c = Child::spawn(&exe, &[], &[]).unwrap();
     assert_eq!(
         until_exit(&c),
         [line("==> one"), line("plain"), ChildEvent::Exited(0)]
@@ -43,7 +43,7 @@ fn lines_and_exit_code_arrive_in_order() {
 fn nonzero_exit_is_reported() {
     let d = tempfile::tempdir().unwrap();
     let exe = stub(d.path(), "exit 3");
-    let c = spawn(&exe, &[], &[]).unwrap();
+    let c = Child::spawn(&exe, &[], &[]).unwrap();
     assert_eq!(until_exit(&c), [ChildEvent::Exited(3)]);
 }
 
@@ -51,7 +51,7 @@ fn nonzero_exit_is_reported() {
 fn stderr_lines_arrive_too() {
     let d = tempfile::tempdir().unwrap();
     let exe = stub(d.path(), "echo oops 1>&2");
-    let c = spawn(&exe, &[], &[]).unwrap();
+    let c = Child::spawn(&exe, &[], &[]).unwrap();
     assert_eq!(until_exit(&c), [line("oops"), ChildEvent::Exited(0)]);
 }
 
@@ -59,7 +59,7 @@ fn stderr_lines_arrive_too() {
 fn partial_last_line_is_flushed() {
     let d = tempfile::tempdir().unwrap();
     let exe = stub(d.path(), "printf 'Type the path: '");
-    let c = spawn(&exe, &[], &[]).unwrap();
+    let c = Child::spawn(&exe, &[], &[]).unwrap();
     assert_eq!(
         until_exit(&c),
         [line("Type the path: "), ChildEvent::Exited(0)]
@@ -70,7 +70,7 @@ fn partial_last_line_is_flushed() {
 fn stdin_line_reaches_the_child() {
     let d = tempfile::tempdir().unwrap();
     let exe = stub(d.path(), "read x; echo \"got:$x\"");
-    let mut c = spawn(&exe, &[], &[]).unwrap();
+    let mut c = Child::spawn(&exe, &[], &[]).unwrap();
     c.send_line("/dev/sdz").unwrap();
     assert_eq!(
         until_exit(&c),
@@ -83,7 +83,7 @@ fn args_and_env_are_passed() {
     let d = tempfile::tempdir().unwrap();
     let exe = stub(d.path(), "echo \"v=$ARCH_TEST_PROBE a=$1\"");
     let env = [("ARCH_TEST_PROBE".to_string(), "fake-value".to_string())];
-    let c = spawn(&exe, &["one".to_string()], &env).unwrap();
+    let c = Child::spawn(&exe, &["one".to_string()], &env).unwrap();
     assert_eq!(
         until_exit(&c),
         [line("v=fake-value a=one"), ChildEvent::Exited(0)]
@@ -97,7 +97,7 @@ fn interrupt_stops_a_running_child_and_lets_it_clean_up() {
         d.path(),
         "trap 'echo cleaned; exit 130' INT\necho ready\nwhile :; do sleep 0.1; done",
     );
-    let c = spawn(&exe, &[], &[]).unwrap();
+    let c = Child::spawn(&exe, &[], &[]).unwrap();
     assert_eq!(recv(&c), line("ready"));
     c.interrupt();
     assert_eq!(until_exit(&c), [line("cleaned"), ChildEvent::Exited(130)]);
@@ -107,7 +107,7 @@ fn interrupt_stops_a_running_child_and_lets_it_clean_up() {
 fn a_signal_death_is_128_plus_the_signal() {
     let d = tempfile::tempdir().unwrap();
     let exe = stub(d.path(), "kill -TERM $$");
-    let c = spawn(&exe, &[], &[]).unwrap();
+    let c = Child::spawn(&exe, &[], &[]).unwrap();
     assert_eq!(until_exit(&c), [ChildEvent::Exited(143)]);
 }
 
@@ -123,7 +123,7 @@ fn missing_binary_is_an_error_naming_the_path() {
 fn invalid_utf8_does_not_stall_the_reader() {
     let d = tempfile::tempdir().unwrap();
     let exe = stub(d.path(), "printf 'a\\377b\\n'");
-    let c = spawn(&exe, &[], &[]).unwrap();
+    let c = Child::spawn(&exe, &[], &[]).unwrap();
     let ev = until_exit(&c);
     assert_eq!(ev.len(), 2, "{ev:?}");
     assert!(matches!(&ev[0], ChildEvent::Line(l) if l.starts_with('a') && l.ends_with('b')));
@@ -133,7 +133,7 @@ fn invalid_utf8_does_not_stall_the_reader() {
 fn a_lot_of_output_does_not_deadlock() {
     let d = tempfile::tempdir().unwrap();
     let exe = stub(d.path(), "seq 1 50000");
-    let c = spawn(&exe, &[], &[]).unwrap();
+    let c = Child::spawn(&exe, &[], &[]).unwrap();
     let ev = until_exit(&c);
     assert_eq!(ev.len(), 50001);
     assert_eq!(ev[49999], line("50000"));

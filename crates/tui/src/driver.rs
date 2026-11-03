@@ -1,12 +1,13 @@
 //! Runs the CLI as a child process and turns its output into `ChildEvent`s.
 
 use crate::app::ChildEvent;
-use std::io::{BufRead, BufReader, Read, Write};
+use std::io::{BufRead, BufReader, ErrorKind, Read, Write};
 use std::os::unix::process::{CommandExt, ExitStatusExt};
 use std::path::Path;
 use std::process::{Command, Stdio};
 use std::sync::mpsc::{Receiver, Sender, channel};
 use std::thread;
+use std::time::Duration;
 
 /// Arguments of `arch-to-go install` for the given device and config file.
 pub fn install_args(device: &str, config: &Path, dry_run: bool) -> Vec<String> {
@@ -53,15 +54,28 @@ fn pump(r: impl Read, tx: Sender<ChildEvent>) {
 impl Child {
     /// Starts `exe` in its own process group, so an interrupt reaches the whole install.
     pub fn spawn(exe: &Path, args: &[String], env: &[(String, String)]) -> Result<Child, String> {
-        let mut child = Command::new(exe)
-            .args(args)
-            .envs(env.iter().map(|(k, v)| (k, v)))
-            .stdin(Stdio::piped())
-            .stdout(Stdio::piped())
-            .stderr(Stdio::piped())
-            .process_group(0)
-            .spawn()
-            .map_err(|e| format!("cannot start {}: {e}", exe.display()))?;
+        let mut child = {
+            let mut tries = 0;
+            loop {
+                let mut cmd = Command::new(exe);
+                cmd.args(args)
+                    .envs(env.iter().map(|(k, v)| (k, v)))
+                    .stdin(Stdio::piped())
+                    .stdout(Stdio::piped())
+                    .stderr(Stdio::piped())
+                    .process_group(0);
+                match cmd.spawn() {
+                    // another thread's fork can hold a just-written script open for a moment
+                    Err(e) if e.kind() == ErrorKind::ExecutableFileBusy && tries < 50 => {
+                        tries += 1;
+                        thread::sleep(Duration::from_millis(20));
+                    }
+                    other => {
+                        break other.map_err(|e| format!("cannot start {}: {e}", exe.display()))?;
+                    }
+                }
+            }
+        };
         let pid = child.id();
         let stdin = child.stdin.take();
         let (tx, rx) = channel();

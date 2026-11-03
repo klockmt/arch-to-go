@@ -12,3 +12,4 @@ What broke, why, and the test that keeps it from breaking again.
 | paru built on the host used `-march=native` and CachyOS's libalpm | host makepkg.conf; not portable | `paru::paru_comes_from_the_prebuilt_package_not_a_host_build` |
 | "installed" printed with writes unflushed or only a lazy unmount | no sync; unmount errors dropped | `plan_all::plan_ends_with_sync`, `runner::finish_*` |
 | Every install ended with "/mnt was only unmounted lazily" and a loop device stayed attached | a gpg-agent started by pacstrap/chroot pacman kept the target keyring open | `plan_all::gpg_agent_is_stopped_before_the_final_sync` |
+| The TUI's temp config directory was created world-readable (755) | tempfile makes directories with the default umask; only temp files are 0600 | `runtime::config_dir_is_private_and_removed_after_exit` |
