@@ -3,6 +3,7 @@
 
 use crate::disks::Disk;
 use crate::editors::Edit;
+use crate::flow::Prompt;
 use arch_to_go_core::config::Config;
 use arch_to_go_core::step::Secret;
 use ratatui::crossterm::event::{KeyCode, KeyEvent, KeyModifiers};
@@ -92,6 +93,14 @@ pub struct App {
     pub step: Option<String>,
     pub exit_code: Option<i32>,
     pub message: Option<String>,
+    /// Lines scrolled down from the top of the plan preview.
+    pub review_scroll: usize,
+    /// Lines scrolled up from the end of the log.
+    pub log_scroll: usize,
+    pub(crate) confirm: String,
+    pub(crate) prompt: Option<Prompt>,
+    pub(crate) aborting: bool,
+    pub(crate) saved_path: Option<PathBuf>,
     menu_cursor: usize,
     // section editor state (see editors.rs)
     pub(crate) cursor: usize,
@@ -121,6 +130,12 @@ impl App {
             step: None,
             exit_code: None,
             message: None,
+            review_scroll: 0,
+            log_scroll: 0,
+            confirm: String::new(),
+            prompt: None,
+            aborting: false,
+            saved_path: None,
             menu_cursor: 0,
             cursor: 0,
             edit: None,
@@ -235,11 +250,17 @@ impl App {
                 self.section_key(s, key);
                 Effect::None
             }
-            _ => Effect::None,
+            Screen::Review => self.review_key(key),
+            Screen::Confirm => self.confirm_key(key),
+            Screen::Run => self.run_key(key),
+            Screen::Done => self.done_key(key),
         }
     }
 
     fn menu_key(&mut self, key: KeyEvent) -> Effect {
+        if self.prompt.is_some() {
+            return self.prompt_key(key);
+        }
         self.message = None;
         if key.modifiers.contains(KeyModifiers::CONTROL) && key.code == KeyCode::Char('c') {
             return Effect::Quit;
@@ -260,15 +281,28 @@ impl App {
                     self.screen = Screen::Section(s);
                     Effect::None
                 }
-                Action::Review => Effect::Review,
-                Action::Install => {
-                    if !self.can_install() {
-                        self.message = Some("not ready: fix the flagged sections first".into());
+                Action::Review => {
+                    if self.config.validate().is_ok() && self.device.is_some() {
+                        Effect::Review
+                    } else {
+                        self.message =
+                            Some("fix the flagged sections and pick a disk first".into());
+                        Effect::None
                     }
+                }
+                Action::Install => {
+                    self.try_install();
                     Effect::None
                 }
                 Action::Quit => Effect::Quit,
-                Action::Save | Action::Load => Effect::None,
+                Action::Save => {
+                    self.open_prompt(crate::flow::PromptKind::Save);
+                    Effect::None
+                }
+                Action::Load => {
+                    self.open_prompt(crate::flow::PromptKind::Load);
+                    Effect::None
+                }
             },
             _ => Effect::None,
         }
