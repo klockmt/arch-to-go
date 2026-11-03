@@ -1,0 +1,9 @@
+[package]
+name = "arch-to-go-tui"
+edition.workspace = true
+version.workspace = true
+
+[dependencies]
+arch-to-go-core = { path = "../core" }
+ratatui = "0.30.2"
+tempfile = "3.27.0"
