@@ -66,6 +66,18 @@ pub fn build(cfg: &Config, ctx: &Ctx) -> Result<Vec<Step>, ConfigError> {
     steps.extend(base::base_steps(cfg, ctx));
     steps.extend(boot::boot_steps(cfg, ctx));
     steps.extend(profile::profile_steps(cfg, ctx));
+    // pacstrap and the chroot pacman calls start a gpg-agent on the target's keyring; left
+    // running it holds /mnt, so the unmount could only be lazy
+    steps.push(run(
+        "stop gpg-agent",
+        &[
+            "gpgconf",
+            "--homedir",
+            "/mnt/etc/pacman.d/gnupg",
+            "--kill",
+            "all",
+        ],
+    ));
     // flush before the caller reports success: the stick may be unplugged right after
     steps.push(run("flush writes to the disk", &["sync"]));
     Ok(steps)
