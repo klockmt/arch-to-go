@@ -38,6 +38,11 @@ enum Cmd {
     },
     /// Validate a config file
     CheckConfig { file: PathBuf },
+    /// Open the terminal UI (editing needs no root; installing does)
+    Tui {
+        #[arg(long)]
+        config: Option<PathBuf>,
+    },
 }
 
 fn main() -> ExitCode {
@@ -52,6 +57,10 @@ fn main() -> ExitCode {
             dry_run || std::env::var("DRY_RUN").is_ok_and(|v| v == "1"),
         ),
         Cmd::CheckConfig { file } => load(&file).map(|_| println!("ok")),
+        Cmd::Tui { config } => config
+            .map(|f| load(&f))
+            .transpose()
+            .and_then(arch_to_go_tui::runtime::run),
     };
     match result {
         Ok(()) => ExitCode::SUCCESS,

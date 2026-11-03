@@ -87,6 +87,7 @@ name = "arch-to-go-cli"
 version = "0.1.0"
 dependencies = [
  "arch-to-go-core",
+ "arch-to-go-tui",
  "clap",
  "ctrlc",
  "rpassword",

@@ -232,3 +232,34 @@ fn disk_is_checked_again_right_before_the_wipe() {
         "nothing may run after the failed recheck:\n{t}"
     );
 }
+
+#[test]
+fn tui_refuses_without_a_terminal() {
+    let fix = fixture("usb");
+    let cfg = config(fix.path(), "");
+    let o = run(&fix, &["tui", "--config", &cfg]);
+    assert!(!o.status.success());
+    assert!(text(&o).contains("needs a terminal"), "{}", text(&o));
+    let o = run(&fix, &["tui"]);
+    assert!(text(&o).contains("needs a terminal"), "{}", text(&o));
+}
+
+#[test]
+fn tui_rejects_an_invalid_config_before_opening() {
+    let fix = fixture("usb");
+    let cfg = config(fix.path(), "[system]\nhostname = \"bad host\"\n");
+    let o = run(&fix, &["tui", "--config", &cfg]);
+    assert!(!o.status.success());
+    let t = text(&o);
+    assert!(t.contains("hostname"), "{t}");
+    assert!(
+        !t.contains("needs a terminal"),
+        "the config error comes first:\n{t}"
+    );
+}
+
+#[test]
+fn tui_is_listed_in_help() {
+    let o = Command::new(BIN).arg("--help").output().unwrap();
+    assert!(text(&o).contains("tui"), "{}", text(&o));
+}
