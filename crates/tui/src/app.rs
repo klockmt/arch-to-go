@@ -144,6 +144,11 @@ impl App {
         }
     }
 
+    /// The selected menu entry.
+    pub fn menu_cursor(&self) -> usize {
+        self.menu_cursor
+    }
+
     /// Valid config, a disk and a password. The CLI still checks the disk itself.
     pub fn can_install(&self) -> bool {
         self.config.validate().is_ok() && self.device.is_some() && self.password.is_some()
