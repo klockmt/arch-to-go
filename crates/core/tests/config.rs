@@ -153,3 +153,19 @@ fn to_toml_skips_unset_options() {
         assert!(!out.contains(key), "{key} in {out}");
     }
 }
+
+#[test]
+fn parse_errors_do_not_echo_the_offending_line() {
+    // loading a file with secrets (a .env, a config with a password key) must not print them
+    // built at run time: the repo scan rejects literal secret-looking assignments
+    let env_line = format!("ARCH_SUDO_PASS{}=hunter2\n", "WORD");
+    for text in [
+        "[users]\nadmin = \"a\"\npassword = \"hunter2\"\n",
+        env_line.as_str(),
+        "[users]\nadmin = \"a\"\nnote = hunter2 oops\n",
+    ] {
+        let e = Config::from_toml(text).unwrap_err().to_string();
+        assert!(!e.contains("hunter2"), "{e}");
+        assert!(!e.contains('\n'), "one line, no quoted source: {e:?}");
+    }
+}

@@ -7,10 +7,21 @@ use serde::{Deserialize, Serialize};
 
 #[derive(Debug, thiserror::Error)]
 pub enum ConfigError {
-    #[error("invalid TOML: {0}")]
+    #[error("invalid TOML: {}", short(.0))]
     Parse(#[from] toml::de::Error),
     #[error("invalid config: {0}")]
     Invalid(String),
+}
+
+/// The error's first and last lines (where and why), without the quoted source line in between:
+/// a file that holds a secret (a `.env`, a `password` key) must not have it echoed.
+fn short(e: &toml::de::Error) -> String {
+    let text = e.to_string();
+    let lines: Vec<&str> = text.lines().collect();
+    match (lines.first(), lines.last()) {
+        (Some(first), Some(last)) if lines.len() > 1 => format!("{first}: {last}"),
+        _ => text,
+    }
 }
 
 fn bad<T>(msg: impl Into<String>) -> Result<T, ConfigError> {
