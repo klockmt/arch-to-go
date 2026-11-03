@@ -136,7 +136,7 @@ fn section_lines(app: &App, s: Section) -> Vec<Line<'static>> {
 }
 
 fn confirm_lines(app: &App) -> Vec<Line<'static>> {
-    let dev = app.device.clone().unwrap_or_default();
+    let dev = app.device_label().unwrap_or_default();
     vec![
         Line::styled(format!("This will ERASE everything on {dev}."), red()),
         Line::from(""),

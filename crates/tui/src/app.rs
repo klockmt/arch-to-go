@@ -144,6 +144,16 @@ impl App {
         }
     }
 
+    /// The chosen device with its size and model, e.g. `/dev/sda (111,8G KINGSTON)`: the path
+    /// alone does not tell a backup stick from the target. `None` until a disk is picked.
+    pub fn device_label(&self) -> Option<String> {
+        let dev = self.device.as_ref()?;
+        Some(match self.disks.iter().find(|d| &d.name == dev) {
+            Some(d) => format!("{dev} ({} {})", d.size, d.model).replace(" )", ")"),
+            None => dev.clone(),
+        })
+    }
+
     /// The selected menu entry.
     pub fn menu_cursor(&self) -> usize {
         self.menu_cursor
@@ -194,7 +204,7 @@ impl App {
                     Action::Open(s) => {
                         let value = match s {
                             Section::Disk => match (&self.device, self.disks.is_empty()) {
-                                (Some(d), _) => d.clone(),
+                                (Some(_), _) => self.device_label().unwrap_or_default(),
                                 (None, true) => "no USB disk found".into(),
                                 (None, false) => "not selected".into(),
                             },

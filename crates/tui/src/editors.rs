@@ -80,7 +80,7 @@ impl App {
             Section::Disk => vec![
                 (
                     "Device",
-                    self.device.clone().unwrap_or_else(|| "none".into()),
+                    self.device_label().unwrap_or_else(|| "none".into()),
                 ),
                 ("Filesystem", format!("{:?}", c.disk.fs).to_lowercase()),
                 ("ESP size", c.disk.esp_size.clone()),

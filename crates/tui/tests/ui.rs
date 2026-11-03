@@ -251,3 +251,23 @@ fn a_huge_terminal_and_long_lines_do_not_panic() {
         arch_to_go_tui::app::Screen::Section(Section::Extras)
     );
 }
+
+#[test]
+fn confirm_shows_which_disk_will_be_erased() {
+    // the path alone does not tell a backup stick from the target: show size and model too
+    let mut a = ready();
+    menu_enter(&mut a, 10);
+    let t = screen(&a);
+    assert!(t.contains("111,8G") && t.contains("TEST SSD"), "{t}");
+}
+
+#[test]
+fn menu_and_disk_screen_show_size_and_model() {
+    let a = ready();
+    let t = screen(&a);
+    assert!(line_with(&t, "Disk").contains("TEST SSD"), "{t}");
+    let mut b = ready();
+    menu_enter(&mut b, 0);
+    let t = screen(&b);
+    assert!(line_with(&t, "Device").contains("111,8G"), "{t}");
+}
