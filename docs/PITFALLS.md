@@ -13,3 +13,4 @@ What broke, why, and the test that keeps it from breaking again.
 | "installed" printed with writes unflushed or only a lazy unmount | no sync; unmount errors dropped | `plan_all::plan_ends_with_sync`, `runner::finish_*` |
 | Every install ended with "/mnt was only unmounted lazily" and a loop device stayed attached | a gpg-agent started by pacstrap/chroot pacman kept the target keyring open | `plan_all::gpg_agent_is_stopped_before_the_final_sync` |
 | The TUI's temp config directory was created world-readable (755) | tempfile makes directories with the default umask; only temp files are 0600 | `runtime::config_dir_is_private_and_removed_after_exit` |
+| After an interrupted or failed install a gpg-agent stayed running and a loop device stayed attached | the plan stops the agent only at its end; pacstrap's agent kept /mnt busy | `runner::guard_stops_the_gpg_agent_before_unmounting` |

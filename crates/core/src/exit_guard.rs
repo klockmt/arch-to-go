@@ -36,6 +36,16 @@ impl MountGuard {
     fn unmount(&mut self) -> Unmount {
         self.done = true;
         let mut r = self.runner.borrow_mut();
+        // pacstrap and the chroot pacman start a gpg-agent on the target's keyring. The plan stops
+        // it at the end, but an interrupted or failed run never gets there, and the agent would
+        // keep /mnt busy (a lazy unmount, an attached loop device). Failing here is harmless.
+        let _ = r.run_cleanup(&Cmd::new(&[
+            "gpgconf",
+            "--homedir",
+            "/mnt/etc/pacman.d/gnupg",
+            "--kill",
+            "all",
+        ]));
         if r.run_cleanup(&Cmd::new(&["umount", "-R", "/mnt"])).is_ok() {
             return Unmount::Clean;
         }

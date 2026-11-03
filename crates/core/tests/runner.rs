@@ -88,13 +88,13 @@ fn guard_unmounts_on_drop_after_failure() {
 #[test]
 fn guard_falls_back_to_lazy_unmount() {
     let m = Rc::new(RefCell::new(MockRunner {
-        fail_at: Some(0), // the first umount fails
+        fail_at: Some(1), // call 0 stops the agent, call 1 is the first umount
         ..Default::default()
     }));
     drop(MountGuard::new(m.clone()));
     let cmds = &m.borrow().cmds;
-    assert_eq!(cmds.len(), 2);
-    assert_eq!(cmds[1].argv, ["umount", "-R", "-l", "/mnt"]);
+    assert_eq!(cmds.len(), 3);
+    assert_eq!(cmds[2].argv, ["umount", "-R", "-l", "/mnt"]);
 }
 
 #[test]
@@ -143,13 +143,17 @@ fn finish_reports_a_clean_unmount_and_does_not_unmount_twice() {
     let m = Rc::new(RefCell::new(MockRunner::default()));
     let guard = MountGuard::new(m.clone());
     assert_eq!(guard.finish(), Unmount::Clean);
-    assert_eq!(m.borrow().cmds.len(), 1, "drop must not unmount again");
+    assert_eq!(
+        m.borrow().cmds.len(),
+        2,
+        "agent stop + umount; drop must not run them again"
+    );
 }
 
 #[test]
 fn finish_reports_a_lazy_unmount() {
     let m = Rc::new(RefCell::new(MockRunner {
-        fail_at: Some(0),
+        fail_at: Some(1),
         ..Default::default()
     }));
     assert_eq!(MountGuard::new(m.clone()).finish(), Unmount::Lazy);
@@ -174,4 +178,34 @@ fn finish_reports_a_failed_unmount() {
     }
     let r = Rc::new(RefCell::new(AlwaysFails));
     assert_eq!(MountGuard::new(r).finish(), Unmount::Failed);
+}
+
+#[test]
+fn guard_stops_the_gpg_agent_before_unmounting() {
+    // an interrupted or failed install never reaches the plan's own gpgconf step; the agent
+    // pacstrap started would keep /mnt busy, leaving a lazy unmount and an attached loop device
+    let m = Rc::new(RefCell::new(MockRunner::default()));
+    drop(MountGuard::new(m.clone()));
+    let cmds = &m.borrow().cmds;
+    assert_eq!(
+        cmds[0].argv,
+        [
+            "gpgconf",
+            "--homedir",
+            "/mnt/etc/pacman.d/gnupg",
+            "--kill",
+            "all"
+        ]
+    );
+    assert_eq!(cmds[1].argv, ["umount", "-R", "/mnt"]);
+}
+
+#[test]
+fn a_failing_agent_stop_does_not_block_the_unmount() {
+    let m = Rc::new(RefCell::new(MockRunner {
+        fail_at: Some(0),
+        ..Default::default()
+    }));
+    assert_eq!(MountGuard::new(m.clone()).finish(), Unmount::Clean);
+    assert_eq!(m.borrow().cmds[1].argv, ["umount", "-R", "/mnt"]);
 }
