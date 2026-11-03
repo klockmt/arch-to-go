@@ -17,13 +17,15 @@
 - **Boot test in QEMU** (OVMF, USB mass storage, snapshot mode so nothing is written): UEFI ->
   Limine -> Arch -> `ly` login screen with the hostname, the Hyprland session and the admin user.
 
+- **Loop-device end-to-end test** (`scripts/arch-sudo scripts/test-loop`): passes 10/10 checks with a
+  clean unmount, no leftover loop device or gpg-agent (after fixing the agent that forced a lazy unmount).
+- **Boot on real hardware:** the installed external SSD boots and works (confirmed by the user).
+
 ## Not run yet
-- Boot on real hardware, and on more than one machine (the portability claim).
+- Boot on more than one machine (the portability claim).
 - Logging in and starting the Hyprland session; Wi-Fi/DHCP on the installed system.
 - Profiles `gnome`/`kde`, `network-manager`, `ext4`/`xfs`, multiple kernels, `zram`, `aur.paru`
   have plan tests only, no real install.
-- `scripts/test-loop` has not run: the `loop` module is missing for the running kernel on the
-  development host.
 
 ## Known gaps
 - Deferred from the final review: `/mnt` is not checked empty before mounting; only Ctrl-C is
