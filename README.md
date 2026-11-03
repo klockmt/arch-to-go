@@ -28,6 +28,26 @@ Host tools needed: `sgdisk`, `wipefs`, `partprobe`, `mkfs.fat`, `mkfs.btrfs` (or
 tools), `pacstrap`, `genfstab`, `arch-chroot`. For `aur.paru`: `git`, `makepkg`, and `sudo`
 from a normal user (makepkg refuses root).
 
+## TUI
+
+```sh
+arch-to-go tui [--config my.toml]
+```
+
+An archinstall-style menu: Disk, Boot, System, User, Profile, Network, Extras, then Save, Load,
+Review and Install. Sections that need attention are flagged with `!`. The TUI edits the same
+config the CLI uses, so the rules are identical; it needs a terminal of at least 80x24.
+
+- **Disk** lists the whole USB disks it finds. **User** takes the admin name and the password
+  twice (masked; the password is never written to the config or the log).
+- **Review** shows the exact plan (`install --dry-run`) in a scrollable pane.
+- **Install** asks you to type the device path, then runs the CLI and shows the steps and its
+  output live. Ctrl-C aborts and waits for the CLI to clean up. Without root it tells you to save
+  the config and gives the `sudo arch-to-go install ... --config ...` command.
+
+The TUI never touches a disk itself: it runs `arch-to-go install` as a subprocess, so every
+safety rule above stays in one place.
+
 ## Safety
 
 Before anything is written the installer refuses a target that is not a whole USB disk, backs
@@ -83,6 +103,7 @@ mirrors from `crates/core/assets/pacman.conf`.
 ```sh
 scripts/check-repo          # fmt, clippy, tests, shellcheck, private-data scan
 scripts/arch-sudo scripts/test-loop   # end to end on a loop device (needs the loop module)
+# ARCH_TO_GO_ALLOW_LOOP=1 makes the CLI and the TUI disk picker accept loop devices (tests only)
 ```
 
 Local values (sudo password, test user and device) live in `.env`; copy `.env.example`.
