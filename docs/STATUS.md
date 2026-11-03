@@ -51,6 +51,13 @@
 - `system.mirror_region` is validated but not applied.
 - During pacstrap, pacman's own mkinitcpio hook prints `call to execv failed`; harmless here
   because the installer writes presets and runs `mkinitcpio -P` itself.
+- TUI, deferred from the final review: no subvolumes editor (set them in the TOML; cycling the
+  filesystem away from btrfs and back drops them); the disk list is read once, so a stick replugged
+  under the same name is not noticed until the CLI's own recheck; the first `==>` step can be
+  glued to the CLI's prompt and show as "starting"; the child's stdin stays open after the device
+  path is sent; Abort could signal a reused process group in a tiny window after the child
+  exited; the sudo hint can name a file whose Save failed; SIGHUP (terminal closed) is not
+  handled; the dry run gets the password in its environment though it does not need it.
 - TUI: Save accepts an invalid config (Load then rejects it); the log keeps every line (no cap);
   the disk list is read once at start; a child that dies from a signal reports 128+signal.
 - No LUKS, no legacy BIOS (out of scope for v1).
