@@ -7,7 +7,7 @@ use std::path::Path;
 use std::process::{Command, Stdio};
 use std::sync::mpsc::{Receiver, Sender, channel};
 use std::thread;
-use std::time::Duration;
+use std::time::{Duration, Instant};
 
 /// Arguments of `arch-to-go install` for the given device and config file.
 pub fn install_args(device: &str, config: &Path, dry_run: bool) -> Vec<String> {
@@ -82,19 +82,30 @@ impl Child {
         let out = child.stdout.take().expect("piped stdout");
         let err = child.stderr.take().expect("piped stderr");
         let (t1, t2) = (tx.clone(), tx.clone());
-        let readers = [
-            thread::spawn(move || pump(out, t1)),
-            thread::spawn(move || pump(err, t2)),
-        ];
+        let (done_tx, done_rx) = channel::<()>();
+        let (d1, d2) = (done_tx.clone(), done_tx);
         thread::spawn(move || {
-            // every line is sent before the exit is reported
-            for r in readers {
-                let _ = r.join();
-            }
+            pump(out, t1);
+            let _ = d1.send(());
+        });
+        thread::spawn(move || {
+            pump(err, t2);
+            let _ = d2.send(());
+        });
+        thread::spawn(move || {
             let code = match child.wait() {
                 Ok(s) => s.code().unwrap_or_else(|| 128 + s.signal().unwrap_or(0)),
                 Err(_) => 127,
             };
+            // The output already in the pipes is sent first, but a process an install step left
+            // running (a daemon) can keep the pipes open for ever: wait for the readers only briefly.
+            let deadline = Instant::now() + Duration::from_secs(2);
+            for _ in 0..2 {
+                let left = deadline.saturating_duration_since(Instant::now());
+                if done_rx.recv_timeout(left).is_err() {
+                    break;
+                }
+            }
             let _ = tx.send(ChildEvent::Exited(code));
         });
         Ok(Child { rx, pid, stdin })

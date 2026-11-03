@@ -95,7 +95,7 @@ fn interrupt_stops_a_running_child_and_lets_it_clean_up() {
     let d = tempfile::tempdir().unwrap();
     let exe = stub(
         d.path(),
-        "trap 'echo cleaned; exit 130' INT\necho ready\nwhile :; do sleep 0.1; done",
+        "trap 'echo cleaned; exit 130' INT\necho ready\nsleep 30",
     );
     let c = Child::spawn(&exe, &[], &[]).unwrap();
     assert_eq!(recv(&c), line("ready"));
@@ -156,4 +156,14 @@ fn install_args_are_exact() {
             "--dry-run"
         ]
     );
+}
+
+#[test]
+fn exit_is_reported_even_if_a_background_process_keeps_the_pipes_open() {
+    let d = tempfile::tempdir().unwrap();
+    // the leftover sleep inherits stdout/stderr, like a daemon started by an install step
+    let exe = stub(d.path(), "sleep 30 &\necho started\nexit 0");
+    let c = Child::spawn(&exe, &[], &[]).unwrap();
+    let ev = until_exit(&c);
+    assert_eq!(ev, [line("started"), ChildEvent::Exited(0)]);
 }
